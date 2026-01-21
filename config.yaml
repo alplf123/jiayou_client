@@ -1,0 +1,25 @@
+env: prod
+server: 0.0.0.0:9876
+event:
+  events:
+    - event_engine_start
+    - event_engine_stop
+    - event_logger_ready
+    - event_local_cron_ready
+    - event_local_cron_done
+    - event_distribute_cron_ready
+    - event_distribute_cron_done
+    - event_gin_server_up
+log:
+  writer_kinds:
+    - dated_file
+    #- std_out
+
+cron:
+  local_tasks: []
+  distribute_tasks:
+    -
+      name: cron_master
+      uri: redis://172.23.109.134:6379/0
+      server_options:
+        concurrency: 100
