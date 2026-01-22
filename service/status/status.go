@@ -41,7 +41,12 @@ func (response *Response) Unwrap() error {
 }
 
 var (
-	Success = New(0, "ok")
+	Success               = New(0, "ok")
+	ErrXrayNotFound       = New(20001, "xray不存在")
+	ErrXray               = New(20002, "xray服务异常")
+	ErrXrayConfig         = New(20003, "xray配置异常")
+	ErrXrayConfigNotFound = New(20003, "xray配置不存在")
+	ErrXrayFile           = New(20004, "xray文件异常")
 )
 
 func New(code Code, Message string) *Response {

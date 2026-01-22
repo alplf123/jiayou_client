@@ -24,6 +24,8 @@ var ErrNeedProxy = "缺少代理"
 var ErrNet = "网络异常"
 var ErrFfmpeg = "FFmpeg异常"
 var ErrVideoFile = "视频文件异常"
+var ErrVideoSoSmall = "视频文件太小了"
+var ErrXray = "xray服务异常"
 
 type ErrBase struct {
 	tag    string

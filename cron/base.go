@@ -54,7 +54,7 @@ func (server *Server) handle(handler asynq.Handler) asynq.Handler {
 
 		if server.beforeTask != nil {
 			if err := server.beforeTask(ctx, &Task{task: task}); err != nil {
-				return err
+				return &skipWrapper{err}
 			}
 		}
 		if err := handler.ProcessTask(ctx, task); err != nil {
@@ -65,8 +65,8 @@ func (server *Server) handle(handler asynq.Handler) asynq.Handler {
 				}
 			}
 			if !errors.Is(err, asynq.SkipRetry) {
-				var shouldRetry = server.opts.ServerOptions.ShouldRetry
-				if !shouldRetry(err) {
+				var opts = server.opts.ServerOptions
+				if opts != nil && opts.ShouldRetry != nil && !opts.ShouldRetry(err) {
 					return &skipWrapper{err}
 				}
 			}

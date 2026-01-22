@@ -24,13 +24,27 @@ const DefaultExpiredToken = 24 * 30 * 3600
 const DefaultCaptchaExpired = 5 * time.Minute
 
 var DefaultDomain = "http://zlku49474541.vicp.fun"
-var DefaultProxy = "http://127.0.0.1:7890"
 
 var DefaultJwtKey = []byte("FiAVkmPYIgFY1osjyKRufkxkHgtCS1Ff")
 
 const DefaultKeyIssuer = "jiayou"
 
-const DefaultMaxGroupSize = 200
+var GlobalDevice = ""
+var GlobalToken = ""
+
+var XrayProcess *os.Process
+
+var DefaultXrayConfig = "xray.json"
+var DefaultXrayPath = "xray.exe"
+
+var DefaultFFmpegPath = "ffmpeg.exe"
+
+const DefaultXrayHost = "127.0.0.1"
+const DefaultXrayPort = 9878
+const DefaultXrayUser = "jiayou"
+const DefaultXrayPwd = "jiayou"
+
+var DefaultProxy = fmt.Sprintf("http://%s:%s@%s:%d", DefaultXrayUser, DefaultXrayPwd, DefaultXrayHost, DefaultXrayPort)
 
 type Claims struct {
 	UserID   uint   `json:"id"`
@@ -80,7 +94,8 @@ func GenerateCaptcha() (string, string) {
 }
 func GenerateVideoFirstFrame(file string) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
-	err := ffmpeg.Input(file).Silent(true).
+	err := ffmpeg.Input(file).
+		Silent(true).
 		Output("pipe:", ffmpeg.KwArgs{
 			"ss":      "00:00:00",
 			"vframes": 1,
@@ -88,6 +103,7 @@ func GenerateVideoFirstFrame(file string) ([]byte, error) {
 			"f":       "image2pipe",
 			"pix_fmt": "rgb24",
 		}).
+		SetFfmpegPath(DefaultFFmpegPath).
 		WithOutput(buf).
 		Run()
 	if err != nil {

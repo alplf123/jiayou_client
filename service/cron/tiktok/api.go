@@ -527,10 +527,10 @@ func WebVideoDetail(url string, reqOption *request.Options) (*Detail, error) {
 func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.Options) error {
 	fileSize, err := common.GetFileSize(file)
 	if err != nil {
-		return fmt.Errorf("get file size failed: %w", err)
+		return model.NewBase().WithTag(model.ErrVideoFile).WithError(fmt.Errorf("get file size failed: %w", err))
 	}
 	if fileSize <= 100*1024 {
-		return fmt.Errorf("file size is too small. %d bytes", fileSize)
+		return model.NewBase().WithTag(model.ErrVideoSoSmall).WithError(fmt.Errorf("file size is too small. %d bytes", fileSize))
 	}
 	firstFrame, err := common.GenerateVideoFirstFrame(file)
 	if err != nil {
@@ -616,7 +616,7 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 			defer waitGroup.Done()
 			fp, err := os.Open(file)
 			if err != nil {
-				return fmt.Errorf("open video file %s failed,%w", file, model.NewBase().WithError(err).WithTag(model.ErrVideoFile))
+				return model.NewBase().WithError(fmt.Errorf("open video file %s failed", file)).WithTag(model.ErrVideoFile)
 			}
 			defer fp.Close()
 			var size, _ = strconv.Atoi(opt.Header.Get("X-Size").First())

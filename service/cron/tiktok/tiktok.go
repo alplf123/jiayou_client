@@ -7,7 +7,6 @@ import (
 	"jiayou_backend_spider/cron"
 	"jiayou_backend_spider/errorx"
 	"jiayou_backend_spider/request"
-	"jiayou_backend_spider/service/api/static"
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/utils"
 	url2 "net/url"
@@ -31,7 +30,7 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = params.Proxy
+	reqOptions.Proxy = common.DefaultProxy
 	var _url string
 	if params.Level == 0 {
 		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + params.Text + "&text_extra=[]&" + params.TiktokWebTaskArg.Query()
@@ -63,12 +62,11 @@ func DyVideoPublish(ctx context.Context, task *cron.Task) error {
 	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = params.Proxy
+	reqOptions.Proxy = common.DefaultProxy
 	reqOptions.Timeout = time.Minute * 30
 	reqOptions.ReadTimeout = time.Minute * 30
 	reqOptions.WriteTimeout = time.Minute * 30
-	var file = static.VideoFolder + "/" + params.FileName
-	return WebVideoPublish(file, UploadVideoParams{
+	return WebVideoPublish(params.FileName, UploadVideoParams{
 		Text:           params.Text,
 		AllowComment:   params.AllowComment,
 		ScheduleTime:   0,
@@ -99,7 +97,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = params.Proxy
+	reqOptions.Proxy = common.DefaultProxy
 	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.TiktokWebTaskArg.Query()
 	_url, err = utils.RunJsCtx(
 		context.Background(),
@@ -143,7 +141,7 @@ func DyUpdateAvatar(ctx context.Context, task *cron.Task) error {
 	}
 	var options = request.DefaultRequestOptions()
 	options.Header.SetUserAgent(common.DefaultUserAgent)
-	options.Proxy = params.Proxy
+	options.Proxy = common.DefaultProxy
 	var resp, err = request.Get(params.Avatar, options)
 	if err != nil {
 		return err
@@ -169,7 +167,7 @@ func DySync(ctx context.Context, task *cron.Task) error {
 	var sidGuard = params.ReqHeaders().Cookie("sid_guard")
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = params.Proxy
+	reqOptions.Proxy = common.DefaultProxy
 	reqOptions.Header.SetCookie("sid_guard", sidGuard)
 	var _url = "https://webcast.us.tiktok.com/webcast/room/create_info/?" + params.Query()
 	_url += "&X-Gnarly=" + Encrypt(_url, "", reqOptions.Header.UserAgent())

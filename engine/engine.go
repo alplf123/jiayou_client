@@ -50,13 +50,8 @@ type CronOptions struct {
 type Options struct {
 	Env            Env             `json:"env" validate:"oneof=prod dev" default:"dev"`
 	Verbose        bool            `json:"verbose" default:"true"`
-	DbDSN          string          `json:"db_dsn" validate:"required"`
-	DbMigrate      bool            `json:"db_migrate"`
-	DbInitialize   bool            `json:"db_initialize"`
-	StaticFolder   string          `json:"static_folder" validate:"required" default:"static"`
 	Domain         string          `json:"domain" validate:"required"`
 	Server         string          `json:"server" validate:"required,hostname_port" default:"localhost:9876"`
-	RedisServer    string          `json:"redis_server" validate:"required"`
 	TaskConcurrent int             `json:"task_concurrent" validate:"gte=0"`
 	Stack          int             `json:"stack" validate:"gte=0"`
 	Event          *EventOptions   `json:"event"`
