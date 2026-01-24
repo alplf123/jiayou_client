@@ -72,6 +72,10 @@ func OnLoad(app *engine.Engine) error {
 		if err := tiktok.Register(server); err != nil {
 			return fmt.Errorf("douyin register failed,%w", err)
 		}
+		if err := server.Start(); err != nil {
+			logger.Error("server start failed", zap.Error(err))
+			return err
+		}
 	}
 	return nil
 }

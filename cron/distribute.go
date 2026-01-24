@@ -300,9 +300,9 @@ func (distributed *Distributed) newCore(opts *DTaskOptions) (*DCore, error) {
 	if server, err := newServer(opts); err != nil {
 		return nil, err
 	} else {
-		if err := server.start(); err != nil {
-			return nil, fmt.Errorf("server start failed[%w]", err)
-		}
+		//if err := server.start(); err != nil {
+		//	return nil, fmt.Errorf("server start failed[%w]", err)
+		//}
 		core.server = server
 	}
 	if inspector, err := newInspector(opts); err != nil {

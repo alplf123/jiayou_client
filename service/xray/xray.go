@@ -26,6 +26,11 @@ func generateXrayConfig(proxy string) error {
 		return fmt.Errorf("bad vless url,%w", err)
 	}
 	var xrayVLess = map[string]any{
+		//"policy": map[string]any{
+		//	"levels": map[string]any{
+		//		"0": map[string]any{"uplinkSpeed": 512},
+		//	},
+		//},
 		"inbounds": []any{
 			map[string]any{
 				"tag":      "socks",
@@ -127,6 +132,7 @@ func StartXray() error {
 		return err
 	}
 	var p, _ = os.Executable()
+	p = ""
 	var xray, xrayConfig string
 	if p == "" {
 		xray = "./" + common.DefaultXrayPath
@@ -153,5 +159,7 @@ func StartXray() error {
 
 func OnLoad(app *engine.Engine) error {
 	common.DefaultDomain = app.Options().Domain
+	common.DefaultLogger, _ = app.Log()
+	exec.Command("taskkill", "/F", "/IM", "xray.exe").Run()
 	return nil
 }

@@ -1,6 +1,7 @@
 package tiktok
 
 import (
+	"bytes"
 	rand2 "crypto/rand"
 	_ "embed"
 	"encoding/hex"
@@ -25,7 +26,9 @@ import (
 	tlsclient "github.com/bogdanfinn/tls-client"
 	"github.com/bogdanfinn/tls-client/profiles"
 	"github.com/dop251/goja"
+	"github.com/juju/ratelimit"
 	"github.com/tidwall/gjson"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -36,7 +39,8 @@ var cryptoLck sync.Mutex
 //go:embed webmssdk.js
 var webmssdk string
 
-const MaxUploadVideoSlice int64 = 10 * 1024 * 1024
+const MaxUploadVideoSlice int64 = 1 * 1024 * 1024
+const defaultUploadRetry = 5
 
 type Comment struct {
 	AwemeId           string   `json:"aweme_id"`
@@ -536,6 +540,7 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 	if err != nil {
 		return model.NewBase().WithTag(model.ErrFfmpeg).WithError(err)
 	}
+	var defaultRateLimiter = ratelimit.NewBucketWithRate(1*1024*1024, 1*1024*1024)
 	var pngRoute = fmt.Sprintf("Action=ApplyUploadInner&Version=2020-11-19&SpaceName=tiktok&FileType=image&IsInner=1&FileSize=%d&s=%s&Scene=poster&device_platform=web",
 		len(firstFrame),
 		RandS13(),
@@ -562,7 +567,7 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 	pngReqOptions.Header.Set("Authorization", pngUploadStore.Auth)
 	pngReqOptions.Header.Set("Content-CRC32", fmt.Sprintf("%x", pngCrc32))
 	pngUrl := fmt.Sprintf("https://%s/upload/v1/%s", pngUploadStore.UploadHost, pngUploadStore.Uri)
-	_, err = uploadData(pngUrl, firstFrame, pngReqOptions)
+	_, err = uploadData(pngUrl, ratelimit.Reader(bytes.NewReader(firstFrame), defaultRateLimiter), pngReqOptions)
 	if err != nil {
 		return fmt.Errorf("upload png failed,%w", err)
 	}
@@ -579,9 +584,6 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 	var tempOptions []*request.Options
 	for i := 0; i < int(fileSize/MaxUploadVideoSlice); i++ {
 		var tempOption = videoReqOptions.Clone()
-		//tempOption.Timeout = 0
-		//tempOption.ReadTimeout = 0
-		//tempOption.WriteTimeout = 0
 		tempOption.Header.Set("X-Part-Number", fmt.Sprintf("%d", i+1))
 		tempOption.Header.Set("X-Size", fmt.Sprintf("%d", MaxUploadVideoSlice))
 		tempOption.Header.Set("X-Part-Offset", fmt.Sprintf("%d", offset))
@@ -606,32 +608,50 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 	var parts []string
 	var partLck sync.Mutex
 	var waitGroup = new(sync.WaitGroup)
-	var concurrent = 3
+	var concurrent = 2
+	var cancel bool
 	for index, opt := range tempOptions {
 		if index%concurrent == 0 {
 			waitGroup.Wait()
 		}
+		if cancel {
+			break
+		}
 		waitGroup.Add(1)
 		waitG.Go(func() error {
 			defer waitGroup.Done()
-			fp, err := os.Open(file)
-			if err != nil {
-				return model.NewBase().WithError(fmt.Errorf("open video file %s failed", file)).WithTag(model.ErrVideoFile)
+			var run = func() error {
+				fp, err := os.Open(file)
+				if err != nil {
+					return model.NewBase().WithError(fmt.Errorf("open video file %s failed", file)).WithTag(model.ErrVideoFile)
+				}
+				defer fp.Close()
+				var size, _ = strconv.Atoi(opt.Header.Get("X-Size").First())
+				var offset, _ = strconv.Atoi(opt.Header.Get("X-Part-Offset").First())
+				if _, err := fp.Seek(int64(offset), 0); err != nil {
+					return fmt.Errorf("seek video file %s failed,%w", file, err)
+				}
+				//var reader = ratelimit.Reader(, defaultRateLimiter)
+				part, err := uploadData(videoUrl, io.LimitReader(fp, int64(size)), opt)
+				if err != nil {
+					return fmt.Errorf("video upload failed at part %d,%w", index, err)
+				}
+				partLck.Lock()
+				parts = append(parts, part)
+				partLck.Unlock()
+				return nil
 			}
-			defer fp.Close()
-			var size, _ = strconv.Atoi(opt.Header.Get("X-Size").First())
-			var offset, _ = strconv.Atoi(opt.Header.Get("X-Part-Offset").First())
-			if _, err := fp.Seek(int64(offset), 0); err != nil {
-				return fmt.Errorf("seek video file %s failed,%w", file, err)
+			var lastErr error
+			for i := 0; i < defaultUploadRetry; i++ {
+				if err := run(); err != nil {
+					lastErr = err
+					common.DefaultLogger.Warn("upload part failed", zap.Int("retry", i+1), zap.Error(err))
+				} else {
+					break
+				}
 			}
-			part, err := uploadData(videoUrl, io.LimitReader(fp, int64(size)), opt)
-			if err != nil {
-				return fmt.Errorf("video upload failed at part %d,%w", index, err)
-			}
-			partLck.Lock()
-			parts = append(parts, part)
-			partLck.Unlock()
-			return nil
+			cancel = lastErr != nil
+			return lastErr
 		})
 	}
 	waitGroup.Wait()

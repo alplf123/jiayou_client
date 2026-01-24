@@ -63,9 +63,9 @@ func DyVideoPublish(ctx context.Context, task *cron.Task) error {
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
 	reqOptions.Proxy = common.DefaultProxy
-	reqOptions.Timeout = time.Minute * 30
-	reqOptions.ReadTimeout = time.Minute * 30
-	reqOptions.WriteTimeout = time.Minute * 30
+	reqOptions.Timeout = time.Hour
+	reqOptions.ReadTimeout = time.Hour
+	reqOptions.WriteTimeout = time.Hour
 	return WebVideoPublish(params.FileName, UploadVideoParams{
 		Text:           params.Text,
 		AllowComment:   params.AllowComment,

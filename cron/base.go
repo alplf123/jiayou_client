@@ -42,7 +42,7 @@ type Server struct {
 	notFoundHandler HandlerFunc
 }
 
-func (server *Server) start() error {
+func (server *Server) Start() error {
 	server.mux.Use(server.handle)
 	return server.server.Start(server.mux)
 }
@@ -59,10 +59,13 @@ func (server *Server) handle(handler asynq.Handler) asynq.Handler {
 		}
 		if err := handler.ProcessTask(ctx, task); err != nil {
 			// handler not found for task
-			if server.notFoundHandler != nil && strings.Contains(err.Error(), "handler not found for task") {
-				if err := server.notFoundHandler(ctx, &Task{task: task}); err != nil {
-					return err
+			if errors.Is(err, asynq.NotFound(ctx, task)) {
+				if server.notFoundHandler != nil {
+					if err := server.notFoundHandler(ctx, &Task{task: task}); err != nil {
+						return err
+					}
 				}
+				return err
 			}
 			if !errors.Is(err, asynq.SkipRetry) {
 				var opts = server.opts.ServerOptions

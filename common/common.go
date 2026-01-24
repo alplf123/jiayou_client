@@ -17,6 +17,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/mojocn/base64Captcha"
 	ffmpeg "github.com/u2takey/ffmpeg-go"
+	"go.uber.org/zap"
 )
 
 const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -28,6 +29,8 @@ var DefaultDomain = "http://zlku49474541.vicp.fun"
 var DefaultJwtKey = []byte("FiAVkmPYIgFY1osjyKRufkxkHgtCS1Ff")
 
 const DefaultKeyIssuer = "jiayou"
+
+var DefaultLogger *zap.Logger
 
 var GlobalDevice = ""
 var GlobalToken = ""
