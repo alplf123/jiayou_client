@@ -72,6 +72,11 @@ func (server *Server) handle(handler asynq.Handler) asynq.Handler {
 				if opts != nil && opts.ShouldRetry != nil && !opts.ShouldRetry(err) {
 					return &skipWrapper{err}
 				}
+				select {
+				case <-ctx.Done():
+					return &skipWrapper{err}
+				default:
+				}
 			}
 			return err
 		}
