@@ -368,7 +368,7 @@ func WebVideoComment(url string, reqOption *request.Options) ([]*Comment, error)
 	headers.Set("user-agent", reqOption.Header.UserAgent())
 	headers.Set("cookie", reqOption.Header.CookiesText())
 	options := []tlsclient.HttpClientOption{
-		tlsclient.WithClientProfile(profiles.Chrome_104),
+		tlsclient.WithClientProfile(profiles.Chrome_133),
 		tlsclient.WithNotFollowRedirects(),
 		tlsclient.WithDefaultHeaders(headers),
 		tlsclient.WithProxyUrl(reqOption.Proxy),
@@ -394,7 +394,7 @@ func WebVideoComment(url string, reqOption *request.Options) ([]*Comment, error)
 	}
 	var body = string(raw)
 	if body == "" {
-		return nil, model.NoRetry(nil).WithTag(model.ErrBadResponse)
+		return nil, model.NewBase().WithTag(model.ErrBadResponse)
 	}
 	if !gjson.Valid(body) {
 		return nil, errorx.New("bad json video data")
@@ -429,6 +429,49 @@ func WebVideoComment(url string, reqOption *request.Options) ([]*Comment, error)
 	return comments, nil
 }
 func WebAddVideoComment(url string, reqOption *request.Options) error {
+	var headers = make(fhttp.Header)
+	headers.Set("user-agent", reqOption.Header.UserAgent())
+	headers.Set("cookie", reqOption.Header.CookiesText())
+	options := []tlsclient.HttpClientOption{
+		tlsclient.WithClientProfile(profiles.Chrome_104),
+		tlsclient.WithNotFollowRedirects(),
+		tlsclient.WithDefaultHeaders(headers),
+		tlsclient.WithProxyUrl(reqOption.Proxy),
+	}
+	client, err := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(), options...)
+	if err != nil {
+		return model.NewNetError().WithError(err)
+	}
+	req, err := fhttp.NewRequest(fhttp.MethodPost, url, nil)
+	if err != nil {
+		return model.NewNetError().WithError(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return model.NewNetError().WithError(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return model.NewStatusError(resp.StatusCode)
+	}
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	var body = string(raw)
+	if body == "" {
+		return model.NoRetry(nil).WithTag(model.ErrBadResponse)
+	}
+	if !gjson.Valid(body) {
+		return errorx.New("bad json video data")
+	}
+	var data = gjson.Parse(body)
+	var code = int(data.Get("status_code").Int())
+	if code != 0 {
+		return model.NewApiError().WithCode(code).WithMessage(data.Get("status_msg").String())
+	}
+	return nil
+}
+func WebVideoDiggLike(url string, reqOption *request.Options) error {
 	var headers = make(fhttp.Header)
 	headers.Set("user-agent", reqOption.Header.UserAgent())
 	headers.Set("cookie", reqOption.Header.CookiesText())
@@ -776,7 +819,30 @@ func WebSync(url string, reqOption *request.Options) error {
 	}
 	return nil
 }
-
+func WebMsToken(url string, reqOption *request.Options) (string, error) {
+	var headers = make(fhttp.Header)
+	headers.Set("user-agent", reqOption.Header.UserAgent())
+	//headers.Set("cookie", reqOption.Header.CookiesText())
+	options := []tlsclient.HttpClientOption{
+		tlsclient.WithClientProfile(profiles.Chrome_104),
+		tlsclient.WithNotFollowRedirects(),
+		tlsclient.WithDefaultHeaders(headers),
+		tlsclient.WithProxyUrl(reqOption.Proxy),
+	}
+	client, err := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(), options...)
+	if err != nil {
+		return "", model.NewNetError().WithError(err)
+	}
+	req, err := fhttp.NewRequest(fhttp.MethodGet, url, nil)
+	if err != nil {
+		return "", model.NewNetError().WithError(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", model.NewNetError().WithError(err)
+	}
+	return "msToken=" + resp.Header.Get("x-ms-token"), nil
+}
 func init() {
 	var ctx = goja.New()
 	ctx.RunString(crypto)

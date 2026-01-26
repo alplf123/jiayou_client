@@ -192,7 +192,7 @@ func (req *ReqHeader) SetCookieText(cookies string) {
 		var item = strings.Split(kv, "=")
 		if len(item) > 1 {
 			var key = strings.TrimSpace(item[0])
-			var value = strings.TrimSpace(kv[len(key)+2:])
+			var value = strings.TrimSpace(strings.Replace(kv, key+"=", "", 1))
 			req.SetCookie(key, value)
 		}
 	}

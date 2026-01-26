@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"jiayou_backend_spider/request"
+	"net/url"
 	"strings"
 	"time"
 
@@ -249,7 +250,7 @@ func (arg *TiktokWebTaskArg) Query() string {
 	var items []string
 	for _, key := range requiredKeys {
 		var v = queryMap[key]
-		items = append(items, fmt.Sprintf("%s=%s", key, v))
+		items = append(items, fmt.Sprintf("%s=%s", key, url.QueryEscape(v)))
 	}
 	return strings.Join(items, "&")
 }
@@ -266,6 +267,13 @@ type WebAddCommentTaskArg struct {
 	VideoId   string `json:"video_id"`
 	Text      string `json:"text"`
 	Level     int    `json:"level"`
+	ReplyUser string `json:"reply_user"`
+	ReplyId   string `json:"reply_id"`
+}
+type WebDiggLikeTaskArg struct {
+	TiktokWebTaskArg
+	VideoUrl  string `json:"video_url"`
+	VideoId   string `json:"video_id"`
 	ReplyUser string `json:"reply_user"`
 	ReplyId   string `json:"reply_id"`
 }

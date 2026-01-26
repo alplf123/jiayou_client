@@ -19,8 +19,10 @@ const (
 	PatternVideoPublish    = "pattern_video_publish"
 	PatternVideoComment    = "pattern_video_comment"
 	PatternVideoDetail     = "pattern_video_detail"
+	PatternVideoDiggLike   = "pattern_digg_like"
 	PatternUpdateAvatar    = "pattern_update_avatar"
-	PatternSync            = "pattern_sync"
+
+	PatternSync = "pattern_sync"
 )
 
 func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
@@ -31,6 +33,22 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
 	reqOptions.Proxy = common.DefaultProxy
+
+	msTokenUrl, err := utils.RunJsCtx(
+		context.Background(),
+		webmssdk,
+		"encrypt",
+		"https://www.tiktok.com/api/explore/item_list/?"+params.Query(),
+		reqOptions.Header.UserAgent(),
+	)
+	if err != nil {
+		return model.NoRetry(err).WithTag(model.ErrRunJs)
+	}
+	msToken, err := WebMsToken(msTokenUrl, reqOptions)
+	if err != nil {
+		return err
+	}
+	reqOptions.Header.SetCookieText(msToken)
 	var _url string
 	if params.Level == 0 {
 		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + params.Text + "&text_extra=[]&" + params.TiktokWebTaskArg.Query()
@@ -39,7 +57,7 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	} else {
 		return model.NoRetry(nil).WithTag(model.ErrTaskCommentLevelUnSupported)
 	}
-	_url, err := utils.RunJsCtx(
+	_url, err = utils.RunJsCtx(
 		context.Background(),
 		webmssdk,
 		"encrypt",
@@ -98,7 +116,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
 	reqOptions.Proxy = common.DefaultProxy
-	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.TiktokWebTaskArg.Query()
+	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.Query()
 	_url, err = utils.RunJsCtx(
 		context.Background(),
 		webmssdk,
@@ -109,6 +127,21 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 	if err != nil {
 		return model.NoRetry(err).WithTag(model.ErrRunJs)
 	}
+	msTokenUrl, err := utils.RunJsCtx(
+		context.Background(),
+		webmssdk,
+		"encrypt",
+		"https://www.tiktok.com/api/explore/item_list/?"+params.Query(),
+		reqOptions.Header.UserAgent(),
+	)
+	if err != nil {
+		return model.NoRetry(err).WithTag(model.ErrRunJs)
+	}
+	msToken, err := WebMsToken(msTokenUrl, reqOptions)
+	if err != nil {
+		return err
+	}
+	reqOptions.Header.SetCookieText(msToken)
 	comments, err := WebVideoComment(
 		_url,
 		reqOptions,
@@ -129,6 +162,47 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 
 }
 func DyVideoDetail(ctx context.Context, task *cron.Task) error {
+	return nil
+}
+func DyVideoDiggLike(ctx context.Context, task *cron.Task) error {
+	var params model.WebDiggLikeTaskArg
+	if err := task.Payload().As(&params); err != nil {
+		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
+	}
+	var reqOptions = request.DefaultRequestOptions()
+	reqOptions.Header = params.ReqHeaders()
+	reqOptions.Proxy = common.DefaultProxy
+
+	msTokenUrl, err := utils.RunJsCtx(
+		context.Background(),
+		webmssdk,
+		"encrypt",
+		"https://www.tiktok.com/api/explore/item_list/?"+params.Query(),
+		reqOptions.Header.UserAgent(),
+	)
+	if err != nil {
+		return model.NoRetry(err).WithTag(model.ErrRunJs)
+	}
+	msToken, err := WebMsToken(msTokenUrl, reqOptions)
+	if err != nil {
+		return err
+	}
+	reqOptions.Header.SetCookieText(msToken)
+	var _url = "aid=1988&aweme_id=" + params.VideoId + "&cid=" + params.ReplyId + "&digg_type=1&" + params.Query()
+	_url, err = utils.RunJsCtx(
+		context.Background(),
+		webmssdk,
+		"encrypt",
+		"https://www.tiktok.com/api/comment/digg/?"+_url,
+		reqOptions.Header.UserAgent(),
+	)
+	if err != nil {
+		return model.NoRetry(err).WithTag(model.ErrRunJs)
+	}
+	err = WebVideoDiggLike(_url, reqOptions)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 func DyUpdateAvatar(ctx context.Context, task *cron.Task) error {
@@ -190,6 +264,7 @@ func Register(server *cron.Server) error {
 	server.HandleFunc(PatternVideoComment, DyVideoComment)
 	server.HandleFunc(PatternVideoDetail, DyVideoDetail)
 	server.HandleFunc(PatternUpdateAvatar, DyUpdateAvatar)
+	server.HandleFunc(PatternVideoDiggLike, DyVideoDiggLike)
 	server.HandleFunc(PatternSync, DySync)
 	return nil
 }

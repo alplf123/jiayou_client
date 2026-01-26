@@ -26,6 +26,7 @@ var ErrFfmpeg = "FFmpeg异常"
 var ErrVideoFile = "视频文件异常"
 var ErrVideoSoSmall = "视频文件太小了"
 var ErrXray = "xray服务异常"
+var ErrLoginExpired = "登录过期"
 
 type ErrBase struct {
 	tag    string
@@ -82,6 +83,11 @@ type ApiError struct {
 }
 
 func (err *ApiError) WithCode(code int) *ApiError {
+	//login expired
+	if code == 8 {
+		err.WithTag(ErrLoginExpired)
+		err.WithRetry(false)
+	}
 	err.Code = code
 	err.fields.Set("code", code)
 	return err
