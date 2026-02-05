@@ -2,6 +2,7 @@ package cron
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"jiayou_backend_spider/common"
 	"jiayou_backend_spider/cron"
@@ -62,10 +63,20 @@ func OnLoad(app *engine.Engine) error {
 			if common.XrayProcess == nil {
 				if err := xray.StartXray(); err != nil {
 					logger.Error("xray start failed", zap.Error(err))
-					return model.NewBase().WithTag(model.ErrXray).WithError(err)
+					if !errors.Is(err, &model.ErrBase{}) {
+						return model.NewBase().WithTag(model.ErrXray).WithError(err)
+					}
+					return err
 				}
 				logger.Info("xray loaded", zap.String("xray", common.DefaultXrayPath))
 				logger.Info("xray config loaded", zap.String("xray", common.DefaultXrayConfig))
+			}
+			var taskArg model.TaskArg
+			if err := task.Payload().As(&taskArg); err == nil {
+				_, ok := common.DefaultXrayConfigMap.Load(taskArg.ProxyName)
+				if !ok {
+					return model.NewBase().WithTag(model.ErrProxyNotBound)
+				}
 			}
 			return nil
 		})

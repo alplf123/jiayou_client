@@ -3,10 +3,11 @@ package tiktok
 import (
 	"context"
 	"errors"
-	"jiayou_backend_spider/common"
+	gcommon "jiayou_backend_spider/common"
 	"jiayou_backend_spider/cron"
 	"jiayou_backend_spider/errorx"
 	"jiayou_backend_spider/request"
+	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/utils"
 	url2 "net/url"
@@ -30,10 +31,14 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
+	var p, _ = gcommon.DefaultXrayConfigMap.Load(params.ProxyName)
+	lineComment, err := common.GetCommentLine(params.File)
+	if err != nil {
+		return model.NoRetry(err).WithTag(model.ErrComment)
+	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = common.DefaultProxy
-
+	reqOptions.Proxy = p.(string)
 	msTokenUrl, err := utils.RunJsCtx(
 		context.Background(),
 		webmssdk,
@@ -51,9 +56,9 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	reqOptions.Header.SetCookieText(msToken)
 	var _url string
 	if params.Level == 0 {
-		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + params.Text + "&text_extra=[]&" + params.TiktokWebTaskArg.Query()
+		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + url2.QueryEscape(lineComment) + "&text_extra=[]&" + params.TiktokWebTaskArg.Query()
 	} else if params.Level == 1 {
-		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + params.Text + "&text_extra=[]&reply_id=" + params.ReplyId + "&reply_to_reply_id=0&" + params.TiktokWebTaskArg.Query()
+		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + url2.QueryEscape(lineComment) + "&text_extra=[]&reply_id=" + params.ReplyId + "&reply_to_reply_id=0&" + params.TiktokWebTaskArg.Query()
 	} else {
 		return model.NoRetry(nil).WithTag(model.ErrTaskCommentLevelUnSupported)
 	}
@@ -69,18 +74,19 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	}
 	err = WebAddVideoComment(_url, reqOptions)
 	if err != nil {
-		return err
+		return nil
 	}
-	return nil
+	return task.Write(model.WebAddCommentTaskResult{VideoId: params.VideoId, ReplyText: lineComment})
 }
 func DyVideoPublish(ctx context.Context, task *cron.Task) error {
 	var params model.WebPublicVideoTaskArg
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
+	var p, _ = gcommon.DefaultXrayConfigMap.Load(params.ProxyName)
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = common.DefaultProxy
+	reqOptions.Proxy = p.(string)
 	reqOptions.Timeout = time.Hour
 	reqOptions.ReadTimeout = time.Hour
 	reqOptions.WriteTimeout = time.Hour
@@ -96,6 +102,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
+	var p, _ = gcommon.DefaultXrayConfigMap.Load(params.ProxyName)
 	var url, err = url2.Parse(params.Url)
 	if err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
@@ -105,7 +112,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 		return model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
 	}
 	var videoId = url.Path[lastFlagPos+1:]
-	if !strings.HasPrefix(videoId, "75") {
+	if !strings.HasPrefix(videoId, "7") {
 		return model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
 	}
 	var result model.WebCommentTaskArgResult
@@ -115,7 +122,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = common.DefaultProxy
+	reqOptions.Proxy = p.(string)
 	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.Query()
 	_url, err = utils.RunJsCtx(
 		context.Background(),
@@ -135,7 +142,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 		reqOptions.Header.UserAgent(),
 	)
 	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrRunJs)
+		return model.NewBase().WithTag(model.ErrRunJs)
 	}
 	msToken, err := WebMsToken(msTokenUrl, reqOptions)
 	if err != nil {
@@ -169,10 +176,10 @@ func DyVideoDiggLike(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
+	var p, _ = gcommon.DefaultXrayConfigMap.Load(params.ProxyName)
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = common.DefaultProxy
-
+	reqOptions.Proxy = p.(string)
 	msTokenUrl, err := utils.RunJsCtx(
 		context.Background(),
 		webmssdk,
@@ -214,8 +221,8 @@ func DyUpdateAvatar(ctx context.Context, task *cron.Task) error {
 		return model.NoRetry(errors.New("bad avatar url"))
 	}
 	var options = request.DefaultRequestOptions()
-	options.Header.SetUserAgent(common.DefaultUserAgent)
-	options.Proxy = common.DefaultProxy
+	options.Header.SetUserAgent(gcommon.DefaultUserAgent)
+	options.Proxy = gcommon.DefaultProxy
 	var resp, err = request.Get(params.Avatar, options)
 	if err != nil {
 		return err
@@ -238,10 +245,11 @@ func DySync(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
+	var p, _ = gcommon.DefaultXrayConfigMap.Load(params.ProxyName)
 	var sidGuard = params.ReqHeaders().Cookie("sid_guard")
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = common.DefaultProxy
+	reqOptions.Proxy = p.(string)
 	reqOptions.Header.SetCookie("sid_guard", sidGuard)
 	var _url = "https://webcast.us.tiktok.com/webcast/room/create_info/?" + params.Query()
 	_url += "&X-Gnarly=" + Encrypt(_url, "", reqOptions.Header.UserAgent())

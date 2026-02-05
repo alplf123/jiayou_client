@@ -36,6 +36,13 @@ const (
 	Pc     Platform = "pc"
 )
 
+type VerifyType string
+
+const (
+	Email VerifyType = "email"
+	TwoFA VerifyType = "2fa"
+)
+
 type Os string
 
 const (
@@ -214,12 +221,16 @@ type SystemSetting struct {
 }
 
 type TaskArg struct {
-	UniqueId string `json:"unique_id"`
-	BindName string `json:"bind_name"`
-	Headers  string `json:"headers"`
-	Cookie   string `json:"cookie"`
-	Info     string `json:"info"`
-	Proxy    string `json:"proxy"`
+	UniqueId      string     `json:"unique_id"`
+	BindName      string     `json:"bind_name"`
+	Headers       string     `json:"headers"`
+	Cookie        string     `json:"cookie"`
+	Info          string     `json:"info"`
+	ProxyName     string     `json:"proxy_name"`
+	ProxyValue    string     `json:"proxy_value"`
+	VerifyType    VerifyType `json:"verify_type"`
+	VerifyToken   string     `json:"verify_token"`
+	VerifyAddress string     `json:"verify_address"`
 }
 
 func (arg *TaskArg) Query() map[string]string {
@@ -265,7 +276,7 @@ type WebPublicVideoTaskArg struct {
 type WebAddCommentTaskArg struct {
 	TiktokWebTaskArg
 	VideoId   string `json:"video_id"`
-	Text      string `json:"text"`
+	File      string `json:"file"`
 	Level     int    `json:"level"`
 	ReplyUser string `json:"reply_user"`
 	ReplyId   string `json:"reply_id"`
@@ -287,6 +298,10 @@ type WebCommentTaskArgResult struct {
 	VideoId   string `json:"video_id"`
 	ReplyId   string `json:"reply_id"`
 	ReplyUser string `json:"reply_user"`
+}
+type WebAddCommentTaskResult struct {
+	VideoId   string `json:"video_id"`
+	ReplyText string `json:"reply_text"`
 }
 type WebUpdateAvatar struct {
 	Avatar string `json:"avatar"`

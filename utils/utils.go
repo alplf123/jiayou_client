@@ -435,12 +435,15 @@ func RunJsCtx(ctx context.Context, js string, call string, args ...string) (stri
 	for _, arg := range args {
 		_args = append(_args, "'"+arg+"'")
 	}
-	var cmd = exec.CommandContext(ctx, "node")
+	var cmd = exec.CommandContext(ctx, "node.exe")
 	var stdOut bytes.Buffer
 	cmd.Stdout = &stdOut
 	cmd.Stdin = strings.NewReader(
 		fmt.Sprintf("%s\r\n%s", js,
 			fmt.Sprintf("console.log(%s(%s))", call, strings.Join(_args, ","))))
+	if errors.Is(cmd.Err, exec.ErrDot) {
+		cmd.Err = nil
+	}
 	if err := cmd.Run(); err != nil {
 		return "", err
 	}

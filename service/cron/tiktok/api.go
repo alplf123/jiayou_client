@@ -39,7 +39,7 @@ var cryptoLck sync.Mutex
 //go:embed webmssdk.js
 var webmssdk string
 
-const MaxUploadVideoSlice int64 = 1 * 1024 * 1024
+const MaxUploadVideoSlice int64 = 15 * 1024 * 1024
 const defaultUploadRetry = 5
 
 type Comment struct {
@@ -459,7 +459,7 @@ func WebAddVideoComment(url string, reqOption *request.Options) error {
 	}
 	var body = string(raw)
 	if body == "" {
-		return model.NoRetry(nil).WithTag(model.ErrBadResponse)
+		return model.NewBase().WithTag(model.ErrBadResponse)
 	}
 	if !gjson.Valid(body) {
 		return errorx.New("bad json video data")
@@ -502,7 +502,7 @@ func WebVideoDiggLike(url string, reqOption *request.Options) error {
 	}
 	var body = string(raw)
 	if body == "" {
-		return model.NoRetry(nil).WithTag(model.ErrBadResponse)
+		return model.NewBase().WithTag(model.ErrBadResponse)
 	}
 	if !gjson.Valid(body) {
 		return errorx.New("bad json video data")
@@ -841,7 +841,11 @@ func WebMsToken(url string, reqOption *request.Options) (string, error) {
 	if err != nil {
 		return "", model.NewNetError().WithError(err)
 	}
-	return "msToken=" + resp.Header.Get("x-ms-token"), nil
+	var msToken = resp.Header.Get("x-ms-token")
+	if msToken == "" {
+		msToken = resp.Header.Get("X-Ms-Token")
+	}
+	return "msToken=" + msToken, nil
 }
 func init() {
 	var ctx = goja.New()

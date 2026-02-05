@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -30,6 +31,8 @@ var DefaultJwtKey = []byte("FiAVkmPYIgFY1osjyKRufkxkHgtCS1Ff")
 
 const DefaultKeyIssuer = "jiayou"
 
+const DefaultDeviceSyncQueue = "__device_sync_queue__"
+
 var DefaultLogger *zap.Logger
 
 var GlobalDevice = ""
@@ -39,6 +42,8 @@ var XrayProcess *os.Process
 
 var DefaultXrayConfig = "xray.json"
 var DefaultXrayPath = "xray.exe"
+
+var DefaultXrayConfigMap = new(sync.Map)
 
 var DefaultFFmpegPath = "ffmpeg.exe"
 
