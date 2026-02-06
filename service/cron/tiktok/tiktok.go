@@ -3,6 +3,8 @@ package tiktok
 import (
 	"context"
 	"errors"
+	"fmt"
+	"jiayou_backend_spider/browser/bit"
 	gcommon "jiayou_backend_spider/common"
 	"jiayou_backend_spider/cron"
 	"jiayou_backend_spider/errorx"
@@ -13,6 +15,8 @@ import (
 	url2 "net/url"
 	"strings"
 	"time"
+
+	"github.com/go-rod/rod/lib/proto"
 )
 
 const (
@@ -22,8 +26,7 @@ const (
 	PatternVideoDetail     = "pattern_video_detail"
 	PatternVideoDiggLike   = "pattern_digg_like"
 	PatternUpdateAvatar    = "pattern_update_avatar"
-
-	PatternSync = "pattern_sync"
+	PatternDeviceSync      = "pattern_device_sync"
 )
 
 func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
@@ -240,7 +243,7 @@ func DyUpdateAvatar(ctx context.Context, task *cron.Task) error {
 	}
 	return nil
 }
-func DySync(ctx context.Context, task *cron.Task) error {
+func DyExpiredDevice(ctx context.Context, task *cron.Task) error {
 	var params model.TiktokWebTaskArg
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
@@ -265,6 +268,154 @@ func DySync(ctx context.Context, task *cron.Task) error {
 	}
 	return nil
 }
+func DyDeviceSync(ctx context.Context, task *cron.Task) error {
+	return nil
+}
+func TestBrowser() {
+	_browser := common.GBrowser.Peek(false, time.Second*15)
+	if _browser == nil {
+		return
+	}
+	if err := bit.UpdateProxy(
+		fmt.Sprintf(
+			"http://%s:%d%s",
+			common.GBitBrowserOptions.DebugAddr,
+			common.GBitBrowserOptions.DebugPort,
+			bit.ApiUpdateProxy,
+		),
+		[]string{_browser.ID},
+		gcommon.DefaultProxy,
+		request.DefaultRequestOptions(),
+	); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(_browser.Name, _browser.ID)
+	if err := _browser.Connect(); err != nil {
+		fmt.Println(err)
+		return
+	}
+	var page, err = _browser.DefaultPage()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = page.Load("https://www.tiktok.com")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(page.WaitLoad())
+	loginEle, err := page.RodPage().Element("#top-right-action-bar-login-button")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = loginEle.Click(proto.InputMouseButtonLeft, 1)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	emailEle, err := page.RodPage().ElementX("//div[text()='Use phone / email / username']")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	time.Sleep(time.Second)
+	err = emailEle.Click(proto.InputMouseButtonLeft, 1)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	userEle, err := page.RodPage().ElementX("//a[text()='Log in with email or username']")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	time.Sleep(time.Second)
+	err = userEle.Click(proto.InputMouseButtonLeft, 1)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	time.Sleep(time.Second)
+	inputUsrEle, err := page.RodPage().Element("input[placeholder='Email or username']")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = inputUsrEle.Input("stephpna5d1")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	inputPwdEle, err := page.RodPage().Element("input[placeholder='Password']")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = inputPwdEle.Input("Aa112233@@")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	loginBtnEle, err := page.RodPage().ElementX("//div[@id='loginModalContentContainer']//button[text()='Log in']")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	time.Sleep(time.Second)
+	err = loginBtnEle.Click(proto.InputMouseButtonLeft, 1)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if page.Wait("()=>document.querySelector('#captcha-verify-container-main-page') != null", time.Second*5, false) == nil {
+		time.Sleep(time.Second)
+		captchaImgs, err := page.RodPage().Elements("img[alt='Captcha']")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		for _, captchaImg := range captchaImgs {
+			v, err := captchaImg.Attribute("src")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			fmt.Println(*v)
+		}
+	}
+	if page.Wait("()=>document.querySelector('#idv-modal-container') != null", time.Second*5, false) == nil {
+		emailVerifyEle, err := page.RodPage().ElementX("//div[@id='idv-modal-container']//h1/following-sibling::div[1]")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		emailVerifyEle.WaitVisible()
+		err = emailVerifyEle.Click(proto.InputMouseButtonLeft, 1)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		if page.Wait("()=>document.querySelector('#captcha-verify-container-main-page') != null", time.Second*5, false) == nil {
+			time.Sleep(time.Second)
+			captchaImgs, err := page.RodPage().Elements("img[alt='Captcha']")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			for _, captchaImg := range captchaImgs {
+				v, err := captchaImg.Attribute("src")
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+				fmt.Println(*v)
+			}
+		}
+	}
+}
 
 func Register(server *cron.Server) error {
 	server.HandleFunc(PatternAddVideoComment, DyAddVideoComment)
@@ -273,6 +424,6 @@ func Register(server *cron.Server) error {
 	server.HandleFunc(PatternVideoDetail, DyVideoDetail)
 	server.HandleFunc(PatternUpdateAvatar, DyUpdateAvatar)
 	server.HandleFunc(PatternVideoDiggLike, DyVideoDiggLike)
-	server.HandleFunc(PatternSync, DySync)
+	server.HandleFunc(PatternDeviceSync, DyDeviceSync)
 	return nil
 }

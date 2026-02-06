@@ -173,6 +173,6 @@ func StartXray() error {
 func OnLoad(app *engine.Engine) error {
 	common.DefaultDomain = app.Options().Domain
 	common.DefaultLogger, _ = app.Log()
-	exec.Command("taskkill", "/F", "/IM", "xray.exe").Run()
+	//exec.Command("taskkill", "/F", "/IM", "xray.exe").Run()
 	return nil
 }

@@ -598,17 +598,19 @@ func Post(url string, body any, opt *Options) (resp *Response, err error) {
 	}
 	return execute(url, http.MethodPost, reader, opt)
 }
-func PostJson(url string, body map[string]any, opt *Options) (resp *Response, err error) {
-	if opt == nil {
-		opt = DefaultRequestOptions()
+func PostJson(url string, body any, opts *Options) (resp *Response, err error) {
+	if opts == nil {
+		opts = DefaultRequestOptions()
 	}
-	return Post(url, body, opt)
+	opts.Header.SetContentType("application/json")
+	return Post(url, body, opts)
 }
-func PostForm(url string, body url.Values, opt *Options) (resp *Response, err error) {
-	if opt == nil {
-		opt = DefaultRequestOptions()
+func PostForm(url string, body any, opts *Options) (resp *Response, err error) {
+	if opts == nil {
+		opts = DefaultRequestOptions()
 	}
-	return Post(url, body, opt)
+	opts.Header.SetContentType("application/x-www-form-urlencoded")
+	return Post(url, body, opts)
 }
 func Execute(url string, method string, body any, opt *Options) (resp *Response, err error) {
 	reader, err := reader(body)

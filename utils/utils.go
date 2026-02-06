@@ -311,7 +311,7 @@ func KillProcessByName(n string) error {
 		name, err := p.Name()
 		if err == nil {
 			if name == n {
-				return p.Kill()
+				p.Kill()
 			}
 		}
 	}

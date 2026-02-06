@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"jiayou_backend_spider/browser"
+	"jiayou_backend_spider/browser/bit"
+	"jiayou_backend_spider/browser/impl"
+	"jiayou_backend_spider/browser/native"
 	"jiayou_backend_spider/config"
 	"jiayou_backend_spider/cron"
 	"jiayou_backend_spider/db"
@@ -47,6 +51,12 @@ type CronOptions struct {
 	LocalTasks        []*cron.LTaskOptions `json:"local_tasks"`
 	DistributeTasks   []*cron.DTaskOptions `json:"distribute_tasks"`
 }
+type BrowserOptions struct {
+	Type          browser.Type    `json:"type"`
+	Workers       int             `json:"workers" validate:"gt=0" default:"1"`
+	NativeOptions *native.Options `json:"native" validate:"required_if=Type native" default:""`
+	BitOptions    *bit.Options    `json:"bit" validate:"required_if=Type bit" default:""`
+}
 type Options struct {
 	Env            Env             `json:"env" validate:"oneof=prod dev" default:"dev"`
 	Verbose        bool            `json:"verbose" default:"true"`
@@ -56,6 +66,7 @@ type Options struct {
 	Stack          int             `json:"stack" validate:"gte=0"`
 	Event          *EventOptions   `json:"event"`
 	Cron           *CronOptions    `json:"cron"`
+	Browser        *BrowserOptions `json:"browser"`
 	Db             []*db.Options   `json:"db"`
 	LogConfig      *logx.ZapConfig `json:"log" validate:"required" default:""`
 }
@@ -73,6 +84,7 @@ type Engine struct {
 	logger         *logx.Logger
 	event          *eventx.EventX
 	db             *db.Sessions
+	browserApp     *browser.App
 	onEvent        EventFunc
 	onOptions      OnOptions
 	meta           *option.Option
@@ -137,6 +149,9 @@ func (engine *Engine) init() error {
 	}
 	if err := engine.initCron(); err != nil {
 		return fmt.Errorf("init cron err,%w", err)
+	}
+	if err := engine.initBrowser(); err != nil {
+		return fmt.Errorf("inti browser err,%w", err)
 	}
 	if err := engine.initGin(); err != nil {
 		return fmt.Errorf("init gin err,%w", err)
@@ -272,6 +287,29 @@ func (engine *Engine) initGin() error {
 	engine.publicEvt(common.EventGinServerReady)
 	return nil
 }
+func (engine *Engine) initBrowser() error {
+	if engine.opts.Browser != nil {
+		var cursor impl.BrowserCursor
+		switch engine.opts.Browser.Type {
+		case browser.Native:
+			cursor = native.NewWithOptions(engine.opts.Browser.NativeOptions)
+		case browser.Bit:
+			cursor = bit.NewWithOptions(engine.opts.Browser.BitOptions)
+		}
+		engine.browserApp = browser.New(
+			browser.WithCtx(engine.ctx),
+			browser.WithCursor(cursor),
+			browser.WithWorkers(engine.opts.Browser.Workers),
+		)
+		err := engine.browserApp.LoadBrowser()
+		if err != nil {
+			return err
+		}
+		engine.publicEvt(common.EventBrowserReady)
+		return nil
+	}
+	return nil
+}
 func (engine *Engine) running() bool {
 	if engine.ctx == nil {
 		return false
@@ -312,6 +350,15 @@ func (engine *Engine) Distribute() (*cron.Distributed, error) {
 		return nil, errors.New("distributed cron disabled")
 	}
 	return engine.distributeCron, nil
+}
+func (engine *Engine) Browser() (*browser.App, error) {
+	if !engine.Running() {
+		return nil, ErrNotRunning
+	}
+	if engine.browserApp == nil {
+		return nil, errors.New("browser disabled")
+	}
+	return engine.browserApp, nil
 }
 func (engine *Engine) Db() (*db.Sessions, error) {
 	if !engine.Running() {
