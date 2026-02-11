@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"jiayou_backend_spider/common"
 	"jiayou_backend_spider/cron"
 	"jiayou_backend_spider/engine"
+	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/cron/tiktok"
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/service/xray"
@@ -47,6 +47,9 @@ func OnInit(app *engine.Engine) error {
 	return nil
 }
 func OnLoad(app *engine.Engine) error {
+	common.GBrowser, _ = app.Browser()
+	common.GBitBrowserOptions = app.Options().Browser.BitOptions
+	tiktok.TestBrowser()
 	distribute, err := app.Distribute()
 	if err != nil {
 		return err

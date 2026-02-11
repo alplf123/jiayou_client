@@ -39,6 +39,9 @@ var cryptoLck sync.Mutex
 //go:embed webmssdk.js
 var webmssdk string
 
+//go:embed inject.js
+var injectjs string
+
 const MaxUploadVideoSlice int64 = 15 * 1024 * 1024
 const defaultUploadRetry = 5
 

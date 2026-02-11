@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"jiayou_backend_spider/common"
+	gcommon "jiayou_backend_spider/common"
 	"jiayou_backend_spider/engine"
 	"jiayou_backend_spider/request"
+	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/model"
 	"net/url"
 	"os"
@@ -112,7 +113,7 @@ func generateXrayConfig(proxies map[string]string) error {
 func findActiveProxy() (map[string]string, error) {
 	var header = request.DefaultRequestOptions()
 	header.Header.Set("Authorization", common.GlobalToken)
-	var resp, err = request.Post(common.DefaultDomain+"/api/proxy", nil, header)
+	var resp, err = request.Post(gcommon.DefaultDomain+"/api/proxy", nil, header)
 	if err != nil {
 		return nil, model.NewBase().WithTag(model.ErrLoadProxy).WithError(err)
 	}
@@ -171,7 +172,7 @@ func StartXray() error {
 }
 
 func OnLoad(app *engine.Engine) error {
-	common.DefaultDomain = app.Options().Domain
+	gcommon.DefaultDomain = app.Options().Domain
 	common.DefaultLogger, _ = app.Log()
 	//exec.Command("taskkill", "/F", "/IM", "xray.exe").Run()
 	return nil

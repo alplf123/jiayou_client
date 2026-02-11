@@ -12,13 +12,11 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/mojocn/base64Captcha"
 	ffmpeg "github.com/u2takey/ffmpeg-go"
-	"go.uber.org/zap"
 )
 
 const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -31,28 +29,7 @@ var DefaultJwtKey = []byte("FiAVkmPYIgFY1osjyKRufkxkHgtCS1Ff")
 
 const DefaultKeyIssuer = "jiayou"
 
-const DefaultDeviceSyncQueue = "__device_sync_queue__"
-
-var DefaultLogger *zap.Logger
-
-var GlobalDevice = ""
-var GlobalToken = ""
-
-var XrayProcess *os.Process
-
-var DefaultXrayConfig = "xray.json"
-var DefaultXrayPath = "xray.exe"
-
-var DefaultXrayConfigMap = new(sync.Map)
-
 var DefaultFFmpegPath = "ffmpeg.exe"
-
-const DefaultXrayHost = "127.0.0.1"
-const DefaultXrayPort = 9878
-const DefaultXrayUser = "jiayou"
-const DefaultXrayPwd = "jiayou"
-
-var DefaultProxy = fmt.Sprintf("http://%s:%s@%s:%d", DefaultXrayUser, DefaultXrayPwd, DefaultXrayHost, DefaultXrayPort)
 
 type Claims struct {
 	UserID   uint   `json:"id"`

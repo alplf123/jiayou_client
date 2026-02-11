@@ -46,7 +46,7 @@ func wait(ctx context.Context, interval time.Duration) error {
 	select {
 	case <-ticker.C:
 	case <-ctx.Done():
-		return ctx.Err()
+		return context.DeadlineExceeded
 	}
 	return nil
 }

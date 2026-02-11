@@ -1,8 +1,8 @@
 package api
 
 import (
-	"jiayou_backend_spider/common"
 	"jiayou_backend_spider/engine"
+	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/status"
 	"net/http"
 	"os"
