@@ -500,6 +500,12 @@ func (chains *Chains) wait() error {
 					case <-done:
 						return
 					case <-ticker.C:
+					default:
+						if chain.friend != nil {
+							if _, ok := chain.friend(); ok {
+								return
+							}
+						}
 					}
 					err := chain.call()
 					if err != nil {
