@@ -10,6 +10,7 @@ import (
 	"jiayou_backend_spider/common"
 	"jiayou_backend_spider/errorx"
 	"jiayou_backend_spider/request"
+	gcommon "jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/utils"
 	"math/rand/v2"
@@ -691,7 +692,7 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 			for i := 0; i < defaultUploadRetry; i++ {
 				if err := run(); err != nil {
 					lastErr = err
-					common.DefaultLogger.Warn("upload part failed", zap.Int("retry", i+1), zap.Error(err))
+					gcommon.DefaultLogger.Warn("upload part failed", zap.Int("retry", i+1), zap.Error(err))
 				} else {
 					break
 				}

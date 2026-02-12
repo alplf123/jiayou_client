@@ -49,7 +49,7 @@ func OnInit(app *engine.Engine) error {
 func OnLoad(app *engine.Engine) error {
 	common.GBrowser, _ = app.Browser()
 	common.GBitBrowserOptions = app.Options().Browser.BitOptions
-	tiktok.TestBrowser()
+	fmt.Println(tiktok.TestBrowser())
 	distribute, err := app.Distribute()
 	if err != nil {
 		return err

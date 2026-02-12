@@ -295,6 +295,7 @@ type Chain struct {
 	friend     func() (func(), bool)
 	index      int
 	forwarded  int
+	retried    int
 	page       *rod.Page
 	callback   ChainCallback
 	opts       *option.Option
@@ -372,7 +373,10 @@ func (chain *Chain) Elements() rod.Elements {
 func (chain *Chain) Options() *option.Option {
 	return chain.opts
 }
-func (chain *Chain) Forwards(exprs ...string) *Chain {
+func (chain *Chain) Forward(expr string) {
+	chain.Forwards(expr)
+}
+func (chain *Chain) Forwards(exprs ...string) {
 	var chs []*Chain
 	var prev = chain.prev
 	for prev != nil {
@@ -391,43 +395,43 @@ func (chain *Chain) Forwards(exprs ...string) *Chain {
 		}
 	}
 	chain.forward(maps.Keys(cMap)...)
-	return chain
 }
 func (chain *Chain) Forwarded() int {
 	return chain.forwarded
 }
+func (chain *Chain) Retied() int { return chain.retried }
 func (chain *Chain) ForwardNext() {
-	if chain.next != nil {
-		chain.forward(chain.next)
+	chain.ForwardNextN(1)
+}
+func (chain *Chain) ForwardNextN(ns ...int) {
+	for _, n := range ns {
+		var next = chain.next
+		for n > 1 {
+			if next != nil {
+				next = next.next
+			}
+			n--
+		}
+		if next != nil {
+			chain.forward(next)
+		}
 	}
 }
 func (chain *Chain) ForwardPrev() {
-	if chain.prev != nil {
-		chain.forward(chain.prev)
-	}
+	chain.ForwardPrevN(1)
 }
-func (chain *Chain) ForwardNextN(n int) {
-	var next = chain.next
-	for n > 0 {
-		if next != nil {
-			next = next.next
+func (chain *Chain) ForwardPrevN(ns ...int) {
+	for _, n := range ns {
+		var prev = chain.prev
+		for n > 1 {
+			if prev != nil {
+				prev = prev.prev
+			}
+			n--
 		}
-		n--
-	}
-	if next != nil {
-		chain.forward(next)
-	}
-}
-func (chain *Chain) ForwardPrevN(n int) {
-	var prev = chain.prev
-	for n > 0 {
 		if prev != nil {
-			prev = prev.prev
+			chain.forward(prev)
 		}
-		n--
-	}
-	if prev != nil {
-		chain.forward(prev)
 	}
 }
 func (chain *Chain) ForwardTop() {
@@ -478,18 +482,10 @@ func (chains *Chains) wait() error {
 	var lck sync.Mutex
 	var forwards = list.New[*Chain]()
 	for {
-		var done = make(chan struct{})
-		var finished bool
-		var _wait = func() error {
-			if chains.timeout > 0 {
-				var waiter = time.NewTicker(chains.timeout)
-				select {
-				case <-done:
-				case <-waiter.C:
-					return errors.New("wait timeout")
-				}
-			}
-			return nil
+		var waitCtx = context.Background()
+		var waitCancel context.CancelFunc
+		if chains.timeout > 0 {
+			waitCtx, waitCancel = context.WithTimeout(waitCtx, chains.timeout)
 		}
 		for _, chain := range chains.chains.ToArray() {
 			wg.Add(1)
@@ -497,16 +493,25 @@ func (chains *Chains) wait() error {
 				defer wg.Done()
 				for {
 					select {
-					case <-done:
+					case <-waitCtx.Done():
+						if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
+							lck.Lock()
+							chains.errors = append(
+								chains.errors,
+								fmt.Errorf("%s('%s') timeout", chain.Type, chain.Expr),
+							)
+							lck.Unlock()
+						}
 						return
 					case <-ticker.C:
 					default:
 						if chain.friend != nil {
 							if _, ok := chain.friend(); ok {
-								return
+								chain.friend = nil
 							}
 						}
 					}
+					chain.retried++
 					err := chain.call()
 					if err != nil {
 						if errors.Is(err, ErrChainSkip) {
@@ -514,11 +519,10 @@ func (chains *Chains) wait() error {
 						}
 					}
 					if len(chain.forwards) > 0 {
-						if err != nil && chain.forwarded >= chains.maxForward {
-							err = fmt.Errorf("out of max forward,%w", err)
+						if chain.forwarded >= chains.maxForward {
+							chain.forwarded = 0
 						} else {
 							forwards.PushRange(chain.forwards...)
-							return
 						}
 					}
 					if err != nil {
@@ -533,32 +537,27 @@ func (chains *Chains) wait() error {
 					if chain.friend != nil {
 						if c, ok := chain.friend(); !ok {
 							c()
+							chain.friend = nil
 						}
 					}
 					lck.Lock()
 					if chains.ref == Any {
-						if !finished {
-							close(done)
-							finished = true
-						}
+						waitCancel()
 					}
 					lck.Unlock()
+					break
 				}
 			}()
-			if chains.async {
-				if err := _wait(); err != nil {
-					return err
-				}
+			if !chains.async {
 				wg.Wait()
 			}
 		}
-		if err := _wait(); err != nil {
-			return err
-		}
 		wg.Wait()
+		waitCancel()
 		if forwards.Size() == 0 {
 			break
 		}
+		chains.chains.Clear()
 		for _, forward := range forwards.ToArray() {
 			if !chains.chains.Contain(forward) {
 				forward.forwarded++
@@ -670,13 +669,14 @@ func (bitPage *Page) Load(_url string) error {
 }
 func (bitPage *Page) Chains() *Chains {
 	return &Chains{
-		page:     bitPage.page,
-		interval: time.Second,
-		timeout:  time.Minute,
-		async:    true,
-		ref:      Any,
-		chains:   list.New[*Chain](),
-		opts:     option.New(nil),
+		page:       bitPage.page,
+		interval:   time.Second,
+		timeout:    time.Second * 30,
+		async:      true,
+		ref:        Any,
+		maxForward: 1,
+		chains:     list.New[*Chain](),
+		opts:       option.New(nil),
 	}
 }
 func (bitPage *Page) WaitLoad() error {

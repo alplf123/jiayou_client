@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"jiayou_backend_spider/api"
 	"jiayou_backend_spider/browser"
 	"jiayou_backend_spider/browser/bit"
 	gcommon "jiayou_backend_spider/common"
@@ -14,13 +13,9 @@ import (
 	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/utils"
-	"math/rand/v2"
 	url2 "net/url"
 	"strings"
 	"time"
-
-	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/proto"
 )
 
 const (
@@ -274,6 +269,324 @@ func DyExpiredDevice(ctx context.Context, task *cron.Task) error {
 }
 func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 
+	//_browser := common.GBrowser.Peek(false, common.DefaultBrowserTryPeek)
+	//if _browser == nil {
+	//	return errors.New("browser try peek timeout")
+	//}
+	//if err := bit.UpdateProxy(
+	//	fmt.Sprintf(
+	//		"http://%s:%d%s",
+	//		common.GBitBrowserOptions.DebugAddr,
+	//		common.GBitBrowserOptions.DebugPort,
+	//		bit.ApiUpdateProxy,
+	//	),
+	//	[]string{_browser.ID},
+	//	common.DefaultProxy,
+	//	request.DefaultRequestOptions(),
+	//); err != nil {
+	//	return err
+	//}
+	//if err := _browser.Connect(); err != nil {
+	//	return fmt.Errorf("browser connect fail,%w", err)
+	//}
+	//var page, err = _browser.DefaultPage()
+	//if err != nil {
+	//	return fmt.Errorf("default page failed,%w", err)
+	//}
+	//err = page.Load("https://www.tiktok.com")
+	//if err != nil {
+	//	return err
+	//}
+	//err = page.WaitLoad()
+	//if err != nil {
+	//	return fmt.Errorf("wait load failed,%w", err)
+	//}
+	//var processLoginButton = func() error {
+	//	loginEle, err := page.RodPage().Element("#top-right-action-bar-login-button")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return loginEle.Click(proto.InputMouseButtonLeft, 1)
+	//}
+	//var processSelectLoginEmail = func() error {
+	//	emailEle, err := page.RodPage().ElementX("//div[text()='Use phone / email / username']")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return emailEle.Click(proto.InputMouseButtonLeft, 1)
+	//}
+	//var processSwitchLoginEmail = func() error {
+	//	userEle, err := page.RodPage().ElementX("//a[text()='Log in with email or username']")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return userEle.Click(proto.InputMouseButtonLeft, 1)
+	//}
+	//var processInputEmail = func(userName string) error {
+	//	inputUsrEle, err := page.RodPage().Element("input[placeholder='Email or username']")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return inputUsrEle.Input(userName)
+	//}
+	//var processInputPassword = func(password string) error {
+	//	inputPwdEle, err := page.RodPage().Element("input[placeholder='Password']")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return inputPwdEle.Input(password)
+	//}
+	//var processClickLoginButton = func() error {
+	//	loginBtnEle, err := page.RodPage().ElementX("//div[@id='loginModalContentContainer']//button[text()='Log in']")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return loginBtnEle.Click(proto.InputMouseButtonLeft, 1)
+	//}
+	//var processCaptcha = func() error {
+	//	captchaImgs, err := page.RodPage().Elements("img[alt='Captcha']")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	for _, captchaImg := range captchaImgs {
+	//		if err := captchaImg.WaitVisible(); err != nil {
+	//			return err
+	//		}
+	//	}
+	//	outImg, _ := captchaImgs[0].Attribute("src")
+	//	innerImg, _ := captchaImgs[1].Attribute("src")
+	//	if outImg == nil || innerImg == nil {
+	//		return errors.New("bad captcha image")
+	//	}
+	//	out := (*outImg)[23:]
+	//	inner := (*innerImg)[23:]
+	//	_, slide, err := api.GetRotate(out, inner)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	slideEle, err := page.RodPage().ElementX("//button[@id='captcha_slide_button']/parent::div")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	shape, err := slideEle.Shape()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	slide = slide + 36 // add base offset
+	//	var slidePage = slideEle.Page()
+	//	if err := slidePage.Mouse.MoveTo(proto.Point{X: shape.Box().X + shape.Box().Width/2, Y: shape.Box().Y + shape.Box().Height/2}); err != nil {
+	//		return err
+	//	}
+	//	if err := slidePage.Mouse.Down(proto.InputMouseButtonLeft, 1); err != nil {
+	//		return err
+	//	}
+	//	for i := 0; i < slide; i += 5 {
+	//		if err := slidePage.Mouse.MoveLinear(proto.Point{X: shape.Box().X + float64(i), Y: shape.Box().Y}, 1); err != nil {
+	//			return err
+	//		}
+	//		time.Sleep(time.Millisecond * time.Duration(10+rand.IntN(50)))
+	//	}
+	//	if err := slidePage.Mouse.MoveLinear(proto.Point{X: shape.Box().X + float64(slide), Y: shape.Box().Y}, 1); err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return slidePage.Mouse.Up(proto.InputMouseButtonLeft, 1)
+	//}
+	//var processReadEmailCode = func(email, deviceId, token string) (string, error) {
+	//	var start = time.Now().UTC()
+	//	body := make(url2.Values)
+	//	body.Set("client_id", "dbc8e03a-b00c-46bd-ae65-b683e7707cb0")
+	//	body.Set("grant_type", "refresh_token")
+	//	body.Set("refresh_token", "M.C535_BL2.0.U.-CnMCwsGZy5Xfzrxx1oFKYDzqtzM7NW7xqrycaNrB6bjVkvqYBCTEWquLvnPCwVSOumHlWtrK*lGC4sv1wLcM!8N4Ti3WR1Wtu2RwTryWWHsR7GRoH1dpydCxbtcSJEcBDd!H!tWMElWlver2NBn8pzZmk135CjwtPKqVTo90Dacfnk7O4BTPNpofUBUh8ON4c70Cn9bm8puEhOZRiu*ak0VszBDMQ4J!1wazlhoM1E1Ax11tBb6rzqNHPramyVLtzWE6u3T9SdlTNLsuEczEPoNv8*mgOjTYlT3gO9VUE5tStFw!EzaN2Bn1pt3r8*Uer4ju05wUpW8CVyjntl2zXwLgyKPlLNl96E1fgmkzfL252LWMvOhRMj*FnvnrZ0U7bg$$")
+	//	body.Set("scope", "https://outlook.office.com/IMAP.AccessAsUser.All offline_access")
+	//	token, err := api.SyncOutlookToken(body)
+	//	if err != nil {
+	//		return "", err
+	//	}
+	//	var ticker = time.NewTicker(time.Second * 15)
+	//	var code string
+	//	for {
+	//		select {
+	//		case <-ticker.C:
+	//			return "", errors.New("read email code timeout")
+	//		default:
+	//			codes, err := api.ReadTiktokCodeFromOutlook(
+	//				email, token, start)
+	//			if err != nil {
+	//				return "", err
+	//			}
+	//			if len(codes) > 0 {
+	//				code = codes[0]
+	//			}
+	//		}
+	//		if code != "" {
+	//			break
+	//		}
+	//		time.Sleep(time.Second)
+	//	}
+	//	return code, nil
+	//}
+	//var processDigitCode = func(code string) error {
+	//	verifyCodeEle, err := page.RodPage().Element("input[placeholder='Enter 6-digit code']")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return verifyCodeEle.Input(code)
+	//}
+	//var processClickNextButton = func() error {
+	//	nextEle, err := page.RodPage().ElementX("//div[text()='Next']/parent::div/parent::div/parent::button")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return nextEle.Click(proto.InputMouseButtonLeft, 1)
+	//}
+	//var processClickSendEmail = func() error {
+	//	emailVerifyEle, err := page.RodPage().ElementX("//div[@id='idv-modal-container']//h1/following-sibling::div[1]")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	err = emailVerifyEle.WaitVisible()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	defer time.Sleep(time.Second)
+	//	return emailVerifyEle.Click(proto.InputMouseButtonLeft, 1)
+	//}
+	//var processVerify = func() error {
+	//	if err := page.Chains().
+	//		//verify email
+	//		Selector("#idv-modal-container", func(chain *browser.Chain) error {
+	//			var element = chain.Elements().First()
+	//			if err := element.WaitVisible(); err != nil {
+	//				return err
+	//			}
+	//			if err := processClickSendEmail(); err != nil {
+	//				return err
+	//			}
+	//			if err := page.Chains().
+	//				//verify captcha
+	//				Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
+	//					var element = chain.Elements().First()
+	//					if err := element.WaitVisible(); err != nil {
+	//						return err
+	//					}
+	//					if err := processCaptcha(); err != nil {
+	//						return err
+	//					}
+	//					chain.ForwardNext()
+	//					return nil
+	//				}).
+	//				XPath("//div[text()='Resend code']", func(chain *browser.Chain) error {
+	//					var element = chain.Elements().First()
+	//					if err := element.WaitVisible(); err != nil {
+	//						return err
+	//					}
+	//					code, err := processReadEmailCode("", "", "")
+	//					if err != nil {
+	//						return err
+	//					}
+	//					err = processDigitCode(code)
+	//					if err != nil {
+	//						return err
+	//					}
+	//					return processClickNextButton()
+	//				}).WaitAny(); err != nil {
+	//				return err
+	//			}
+	//			if err := page.Chains().
+	//				//verify captcha
+	//				Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
+	//					var element = chain.Elements().First()
+	//					if err := element.WaitVisible(); err != nil {
+	//						return err
+	//					}
+	//					if err := processCaptcha(); err != nil {
+	//						return err
+	//					}
+	//					chain.ForwardNext()
+	//					return nil
+	//				}).
+	//				Selector(".TUXButton-iconContainer", func(chain *browser.Chain) error {
+	//					var element = chain.Elements().First()
+	//					if err := element.WaitVisible(); err != nil {
+	//						return err
+	//					}
+	//					return nil
+	//				}).WaitAny(); err != nil {
+	//				return err
+	//			}
+	//			return nil
+	//		}).
+	//		//verify 2fa
+	//		Selector("#loginModalContentContainer", func(chain *browser.Chain) error {
+	//			var element = chain.Elements().First()
+	//			if err := element.WaitVisible(); err != nil {
+	//				return err
+	//			}
+	//			code, err := api.TwoFA("")
+	//			if err != nil {
+	//				return err
+	//			}
+	//			err = processDigitCode(code)
+	//			if err != nil {
+	//				return err
+	//			}
+	//			err = processClickNextButton()
+	//			if err != nil {
+	//				return err
+	//			}
+	//			if err := page.Chains().
+	//				//verify captcha
+	//				Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
+	//					var element = chain.Elements().First()
+	//					if err := element.WaitVisible(); err != nil {
+	//						return err
+	//					}
+	//					if err := processCaptcha(); err != nil {
+	//						return err
+	//					}
+	//					chain.ForwardNext()
+	//					return nil
+	//				}).
+	//				Selector(".TUXButton-iconContainer", func(chain *browser.Chain) error {
+	//					var element = chain.Elements().First()
+	//					if err := element.WaitVisible(); err != nil {
+	//						return err
+	//					}
+	//					return nil
+	//				}).WaitAny(); err != nil {
+	//				return err
+	//			}
+	//			return nil
+	//		}).
+	//		//verify captcha
+	//		Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
+	//			var element = chain.Elements().First()
+	//			if err := element.WaitVisible(); err != nil {
+	//				return err
+	//			}
+	//			if err := processCaptcha(); err != nil {
+	//				return err
+	//			}
+	//			chain.Forwards("#idv-modal-container", "#loginModalContentContainer")
+	//			return nil
+	//
+	//		}).WaitAny(); err != nil {
+	//		return err
+	//	}
+	//	return nil
+	//}
+	return nil
+}
+func TestBrowser() error {
 	_browser := common.GBrowser.Peek(false, common.DefaultBrowserTryPeek)
 	if _browser == nil {
 		return errors.New("browser try peek timeout")
@@ -306,428 +619,27 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 	if err != nil {
 		return fmt.Errorf("wait load failed,%w", err)
 	}
-	var processLoginButton = func() error {
-		loginEle, err := page.RodPage().Element("#top-right-action-bar-login-button")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return loginEle.Click(proto.InputMouseButtonLeft, 1)
-	}
-	var processSelectLoginEmail = func() error {
-		emailEle, err := page.RodPage().ElementX("//div[text()='Use phone / email / username']")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return emailEle.Click(proto.InputMouseButtonLeft, 1)
-	}
-	var processSwitchLoginEmail = func() error {
-		userEle, err := page.RodPage().ElementX("//a[text()='Log in with email or username']")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return userEle.Click(proto.InputMouseButtonLeft, 1)
-	}
-	var processInputEmail = func(userName string) error {
-		inputUsrEle, err := page.RodPage().Element("input[placeholder='Email or username']")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return inputUsrEle.Input(userName)
-	}
-	var processInputPassword = func(password string) error {
-		inputPwdEle, err := page.RodPage().Element("input[placeholder='Password']")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return inputPwdEle.Input(password)
-	}
-	var processClickLoginButton = func() error {
-		loginBtnEle, err := page.RodPage().ElementX("//div[@id='loginModalContentContainer']//button[text()='Log in']")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return loginBtnEle.Click(proto.InputMouseButtonLeft, 1)
-	}
-	var processCaptcha = func() error {
-		captchaImgs, err := page.RodPage().Elements("img[alt='Captcha']")
-		if err != nil {
-			return err
-		}
-		for _, captchaImg := range captchaImgs {
-			if err := captchaImg.WaitVisible(); err != nil {
-				return err
-			}
-		}
-		outImg, _ := captchaImgs[0].Attribute("src")
-		innerImg, _ := captchaImgs[1].Attribute("src")
-		if outImg == nil || innerImg == nil {
-			return errors.New("bad captcha image")
-		}
-		out := (*outImg)[23:]
-		inner := (*innerImg)[23:]
-		_, slide, err := api.GetRotate(out, inner)
-		if err != nil {
-			return err
-		}
-		slideEle, err := page.RodPage().ElementX("//button[@id='captcha_slide_button']/parent::div")
-		if err != nil {
-			return err
-		}
-		shape, err := slideEle.Shape()
-		if err != nil {
-			return err
-		}
-		slide = slide + 36 // add base offset
-		var slidePage = slideEle.Page()
-		if err := slidePage.Mouse.MoveTo(proto.Point{X: shape.Box().X + shape.Box().Width/2, Y: shape.Box().Y + shape.Box().Height/2}); err != nil {
-			return err
-		}
-		if err := slidePage.Mouse.Down(proto.InputMouseButtonLeft, 1); err != nil {
-			return err
-		}
-		for i := 0; i < slide; i += 5 {
-			if err := slidePage.Mouse.MoveLinear(proto.Point{X: shape.Box().X + float64(i), Y: shape.Box().Y}, 1); err != nil {
-				return err
-			}
-			time.Sleep(time.Millisecond * time.Duration(10+rand.IntN(50)))
-		}
-		if err := slidePage.Mouse.MoveLinear(proto.Point{X: shape.Box().X + float64(slide), Y: shape.Box().Y}, 1); err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return slidePage.Mouse.Up(proto.InputMouseButtonLeft, 1)
-	}
-	var processReadEmailCode = func(email, deviceId, token string) (string, error) {
-		var start = time.Now().UTC()
-		body := make(url2.Values)
-		body.Set("client_id", "dbc8e03a-b00c-46bd-ae65-b683e7707cb0")
-		body.Set("grant_type", "refresh_token")
-		body.Set("refresh_token", "M.C535_BL2.0.U.-CnMCwsGZy5Xfzrxx1oFKYDzqtzM7NW7xqrycaNrB6bjVkvqYBCTEWquLvnPCwVSOumHlWtrK*lGC4sv1wLcM!8N4Ti3WR1Wtu2RwTryWWHsR7GRoH1dpydCxbtcSJEcBDd!H!tWMElWlver2NBn8pzZmk135CjwtPKqVTo90Dacfnk7O4BTPNpofUBUh8ON4c70Cn9bm8puEhOZRiu*ak0VszBDMQ4J!1wazlhoM1E1Ax11tBb6rzqNHPramyVLtzWE6u3T9SdlTNLsuEczEPoNv8*mgOjTYlT3gO9VUE5tStFw!EzaN2Bn1pt3r8*Uer4ju05wUpW8CVyjntl2zXwLgyKPlLNl96E1fgmkzfL252LWMvOhRMj*FnvnrZ0U7bg$$")
-		body.Set("scope", "https://outlook.office.com/IMAP.AccessAsUser.All offline_access")
-		token, err := api.SyncOutlookToken(body)
-		if err != nil {
-			return "", err
-		}
-		var ticker = time.NewTicker(time.Second * 15)
-		var code string
-		for {
-			select {
-			case <-ticker.C:
-				return "", errors.New("read email code timeout")
-			default:
-				codes, err := api.ReadTiktokCodeFromOutlook(
-					email, token, start)
-				if err != nil {
-					return "", err
-				}
-				if len(codes) > 0 {
-					code = codes[0]
-				}
-			}
-			if code != "" {
-				break
-			}
-			time.Sleep(time.Second)
-		}
-		return code, nil
-	}
-	var processDigitCode = func(code string) error {
-		verifyCodeEle, err := page.RodPage().Element("input[placeholder='Enter 6-digit code']")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return verifyCodeEle.Input(code)
-	}
-	var processClickNextButton = func() error {
-		nextEle, err := page.RodPage().ElementX("//div[text()='Next']/parent::div/parent::div/parent::button")
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return nextEle.Click(proto.InputMouseButtonLeft, 1)
-	}
-	var processClickSendEmail = func() error {
-		emailVerifyEle, err := page.RodPage().ElementX("//div[@id='idv-modal-container']//h1/following-sibling::div[1]")
-		if err != nil {
-			return err
-		}
-		err = emailVerifyEle.WaitVisible()
-		if err != nil {
-			return err
-		}
-		defer time.Sleep(time.Second)
-		return emailVerifyEle.Click(proto.InputMouseButtonLeft, 1)
-	}
-	var processVerify = func() error {
-		if err := page.Chains().
-			//verify email
-			Selector("#idv-modal-container", func(chain *browser.Chain) error {
-				var element = chain.Elements().First()
-				if err := element.WaitVisible(); err != nil {
-					return err
-				}
-				if err := processClickSendEmail(); err != nil {
-					return err
-				}
-				if err := page.Chains().
-					//verify captcha
-					Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
-						var element = chain.Elements().First()
-						if err := element.WaitVisible(); err != nil {
-							return err
-						}
-						if err := processCaptcha(); err != nil {
-							return err
-						}
-						chain.ForwardNext()
-						return nil
-					}).
-					XPath("//div[text()='Resend code']", func(chain *browser.Chain) error {
-						var element = chain.Elements().First()
-						if err := element.WaitVisible(); err != nil {
-							return err
-						}
-						code, err := processReadEmailCode("", "", "")
-						if err != nil {
-							return err
-						}
-						err = processDigitCode(code)
-						if err != nil {
-							return err
-						}
-						return processClickNextButton()
-					}).WaitAny(); err != nil {
-					return err
-				}
-				if err := page.Chains().
-					//verify captcha
-					Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
-						var element = chain.Elements().First()
-						if err := element.WaitVisible(); err != nil {
-							return err
-						}
-						if err := processCaptcha(); err != nil {
-							return err
-						}
-						chain.ForwardNext()
-						return nil
-					}).
-					Selector(".TUXButton-iconContainer", func(chain *browser.Chain) error {
-						var element = chain.Elements().First()
-						if err := element.WaitVisible(); err != nil {
-							return err
-						}
-						return nil
-					}).WaitAny(); err != nil {
-					return err
-				}
-				return nil
-			}).
-			//verify 2fa
-			Selector("#loginModalContentContainer", func(chain *browser.Chain) error {
-				var element = chain.Elements().First()
-				if err := element.WaitVisible(); err != nil {
-					return err
-				}
-				code, err := api.TwoFA("")
-				if err != nil {
-					return err
-				}
-				err = processDigitCode(code)
-				if err != nil {
-					return err
-				}
-				err = processClickNextButton()
-				if err != nil {
-					return err
-				}
-				if err := page.Chains().
-					//verify captcha
-					Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
-						var element = chain.Elements().First()
-						if err := element.WaitVisible(); err != nil {
-							return err
-						}
-						if err := processCaptcha(); err != nil {
-							return err
-						}
-						chain.ForwardNext()
-						return nil
-					}).
-					Selector(".TUXButton-iconContainer", func(chain *browser.Chain) error {
-						var element = chain.Elements().First()
-						if err := element.WaitVisible(); err != nil {
-							return err
-						}
-						return nil
-					}).WaitAny(); err != nil {
-					return err
-				}
-				return nil
-			}).
-			//verify captcha
-			Selector("#captcha-verify-container-main-page", func(chain *browser.Chain) error {
-				var element = chain.Elements().First()
-				if err := element.WaitVisible(); err != nil {
-					return err
-				}
-				if err := processCaptcha(); err != nil {
-					return err
-				}
-				chain.Forwards("#idv-modal-container", "#loginModalContentContainer")
-				return nil
-
-			}).WaitAny(); err != nil {
-			return err
-		}
-		return nil
-	}
-}
-func TestBrowser() {
-
-	if page.Wait("()=>document.querySelector('#captcha-verify-container-main-page') != null", time.Second*5, false) == nil {
-		time.Sleep(time.Second)
-		captchaImgs, err := page.RodPage().Elements("img[alt='Captcha']")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		for _, captchaImg := range captchaImgs {
-			v, err := captchaImg.Attribute("src")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			fmt.Println(*v)
-		}
-	}
-	if page.Wait("()=>document.querySelector('#idv-modal-container') != null", time.Second*15, false) == nil {
-		emailVerifyEle, err := page.RodPage().ElementX("//div[@id='idv-modal-container']//h1/following-sibling::div[1]")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		err = emailVerifyEle.WaitVisible()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		err = emailVerifyEle.Click(proto.InputMouseButtonLeft, 1)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		if page.Wait("()=>document.querySelector('#captcha-verify-container-main-page') != null", time.Second*15, false) == nil {
-			time.Sleep(time.Second * 3)
-			captchaImgs, err := page.RodPage().Elements("img[alt='Captcha']")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			outImg, _ := captchaImgs[0].Attribute("src")
-			innerImg, _ := captchaImgs[1].Attribute("src")
-			if outImg == nil || innerImg == nil {
-				fmt.Println(errors.New("bad captcha image"))
-				return
-			}
-			out := (*outImg)[23:]
-			inner := (*innerImg)[23:]
-			rotate, slide, err := api.GetRotate(out, inner)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			fmt.Println(rotate, slide)
-			//_, err = page.RodPage().Eval(injectjs, slide)
-			//if err != nil {
-			//	fmt.Println(err)
-			//	return
-			//}
-			slideEle, err := page.RodPage().ElementX("//button[@id='captcha_slide_button']/parent::div")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			shape, err := slideEle.Shape()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			fmt.Println(shape.Box().X, shape.Box().Y, shape.Box().Width, shape.Box().Height)
-			//slide = (rotate / 2) * (284 / 180)
-			slide = slide + 36 // add base offset
-			var slidePage = slideEle.Page()
-			fmt.Println(slidePage.Mouse.MoveTo(proto.Point{X: shape.Box().X + shape.Box().Width/2, Y: shape.Box().Y + shape.Box().Height/2}))
-			fmt.Println(slidePage.Mouse.Down(proto.InputMouseButtonLeft, 1))
-			for i := 0; i < slide; i += 5 {
-				fmt.Println(slidePage.Mouse.MoveLinear(proto.Point{X: shape.Box().X + float64(i), Y: shape.Box().Y}, 1))
-				time.Sleep(time.Millisecond * time.Duration(10+rand.IntN(50)))
-			}
-			fmt.Println(slidePage.Mouse.MoveLinear(proto.Point{X: shape.Box().X + float64(slide), Y: shape.Box().Y}, 1))
-			fmt.Println(slidePage.Mouse.Up(proto.InputMouseButtonLeft, 1))
-			var start = time.Now().UTC()
-			body := make(url2.Values)
-			body.Set("client_id", "dbc8e03a-b00c-46bd-ae65-b683e7707cb0")
-			body.Set("grant_type", "refresh_token")
-			body.Set("refresh_token", "M.C535_BL2.0.U.-CnMCwsGZy5Xfzrxx1oFKYDzqtzM7NW7xqrycaNrB6bjVkvqYBCTEWquLvnPCwVSOumHlWtrK*lGC4sv1wLcM!8N4Ti3WR1Wtu2RwTryWWHsR7GRoH1dpydCxbtcSJEcBDd!H!tWMElWlver2NBn8pzZmk135CjwtPKqVTo90Dacfnk7O4BTPNpofUBUh8ON4c70Cn9bm8puEhOZRiu*ak0VszBDMQ4J!1wazlhoM1E1Ax11tBb6rzqNHPramyVLtzWE6u3T9SdlTNLsuEczEPoNv8*mgOjTYlT3gO9VUE5tStFw!EzaN2Bn1pt3r8*Uer4ju05wUpW8CVyjntl2zXwLgyKPlLNl96E1fgmkzfL252LWMvOhRMj*FnvnrZ0U7bg$$")
-			body.Set("scope", "https://outlook.office.com/IMAP.AccessAsUser.All offline_access")
-			token, err := api.SyncOutlookToken(body)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			var ticker = time.NewTicker(time.Second * 15)
-			var code string
-			for {
-				select {
-				case <-ticker.C:
-					fmt.Println("get code timeout")
-					return
-				default:
-					codes, err := api.ReadTiktokCodeFromOutlook(
-						"JoshuaHansen2791@outlook.com", token, start)
-					if err != nil {
-						fmt.Println(err)
-						return
-					}
-					if len(codes) > 0 {
-						code = codes[0]
-					}
-				}
-				if code != "" {
-					break
-				}
-				time.Sleep(time.Second)
-			}
-			fmt.Println(code)
-			verifyCodeEle, err := page.RodPage().Element("input[placeholder='Enter 6-digit code']")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			err = verifyCodeEle.Input(code)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			nextEle, err := page.RodPage().ElementX("//div[text()='Next']/parent::div/parent::div/parent::button")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			fmt.Println(nextEle)
-			time.Sleep(time.Second)
-			nextEle.Click(proto.InputMouseButtonLeft, 1)
-		}
-
-	}
+	return page.Chains().
+		Ref(browser.Any).
+		MaxForward(2).
+		XPath("//div[text()='Comedy']", func(chain *browser.Chain) error {
+			var first = chain.Elements().First()
+			fmt.Println("found Comedy", first)
+			fmt.Println(chain.Retied(), chain.Forwarded())
+			chain.ForwardNextN(2)
+			return nil
+		}).
+		XPath("//div[text()='Comedy1']", func(chain *browser.Chain) error {
+			var first = chain.Elements().First()
+			fmt.Println("found Comedy", first)
+			return nil
+		}).
+		XPath("//div[text()='Log in']", func(chain *browser.Chain) error {
+			var first = chain.Elements().First()
+			fmt.Println("found login", first)
+			chain.Forwards("//div[text()='Comedy1']", "//div[text()='Comedy']")
+			return nil
+		}).Wait()
 }
 
 func Register(server *cron.Server) error {

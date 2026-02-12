@@ -3,9 +3,9 @@ package main
 import (
 	_ "embed"
 	"fmt"
-	"jiayou_backend_spider/common"
 	"jiayou_backend_spider/engine"
 	"jiayou_backend_spider/service"
+	"jiayou_backend_spider/service/common"
 	"os"
 )
 
