@@ -81,9 +81,9 @@ func CreateWindow(api string, windowConfig string, opts *request.Options) (RespM
 	r["name"] = json.Get("data.name").String()
 	return r, nil
 }
-func WindowAlive(api string, id string, opts *request.Options) (ok bool, err error) {
+func WindowAlive(api string, id string, opts *request.Options) (existed bool, pid int, err error) {
 	var payload = `{"ids": ["` + id + `"]}`
-	resp, err := request.PostJson(api, payload, opts)
+	resp, err := request.Post(api, payload, opts)
 	if err != nil {
 		return
 	}
@@ -93,7 +93,9 @@ func WindowAlive(api string, id string, opts *request.Options) (ok bool, err err
 		return
 	}
 	json := gjson.Parse(resp.Text())
-	return json.Get("data." + id).Exists(), nil
+	existed = json.Get("data." + id).Exists()
+	pid = int(json.Get("data." + id).Int())
+	return
 }
 func FindPid(api string, ids []string, opts *request.Options) (pids map[string]int, err error) {
 	var data = option.New(nil)
@@ -123,6 +125,24 @@ func FindPid(api string, ids []string, opts *request.Options) (pids map[string]i
 func CloseWindow(api string, id string, opts *request.Options) (ok bool, err error) {
 	var payload = `{"id":"` + id + `"}`
 	resp, err := request.PostJson(api, payload, opts)
+	if err != nil {
+		return
+	}
+	defer resp.Close()
+	if resp.Status() != 200 {
+		err = errorx.Slient().New("bad status").WithField("status", resp.Status())
+		return
+	}
+	json := gjson.Parse(resp.Text())
+	if !json.Get("success").Bool() {
+		err = errorx.Slient().New("bad api request").WithField("url", api).WithField("message", json.Get("msg").String())
+		return
+	}
+	return true, nil
+}
+func ClearWindow(api string, id string, opts *request.Options) (ok bool, err error) {
+	var payload = `{"ids": ["` + id + `"]}`
+	resp, err := request.Post(api, payload, opts)
 	if err != nil {
 		return
 	}

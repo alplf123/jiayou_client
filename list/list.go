@@ -2,6 +2,7 @@ package list
 
 import (
 	"reflect"
+	"slices"
 	"sync"
 )
 
@@ -12,23 +13,57 @@ type List[T any] struct {
 type FilterFunc[T any] func(T) bool
 type IterFunc[Z int, T any] func(Z, T) bool
 
+func (a *List[T]) removeRef(index int) {
+	if index >= a.size() || index < 0 {
+		return
+	}
+	val := reflect.ValueOf(a.arr).Index(index)
+	if val.Kind() == reflect.Pointer {
+		val.Set(reflect.Zero(val.Type()))
+	}
+}
+func (a *List[T]) removeI(index int) *List[T] {
+	if index >= a.size() || index < 0 {
+		return a
+	}
+	//remove reference
+	a.removeRef(index)
+	a.arr = append(a.arr[:index], a.arr[index+1:]...)
+	return a
+
+}
+func (a *List[T]) iter(iter IterFunc[int, T]) {
+	for i, v := range a.arr {
+		if iter(i, v) {
+			return
+		}
+	}
+}
+func (a *List[T]) size() int {
+	return len(a.arr)
+}
+func (a *List[T]) push(any T) *List[T] {
+	a.arr = append(a.arr, any)
+	return a
+}
+func (a *List[T]) pushLeft(any T) *List[T] {
+	a.arr = slices.Insert(a.arr, 0, any)
+	return a
+}
 func (a *List[T]) Size() int {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 	return a.size()
-}
-
-func (a *List[T]) size() int {
-	return len(a.arr)
 }
 func (a *List[T]) Push(any T) *List[T] {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 	return a.push(any)
 }
-func (a *List[T]) push(any T) *List[T] {
-	a.arr = append(a.arr, any)
-	return a
+func (a *List[T]) PushL(any T) *List[T] {
+	a.lck.Lock()
+	defer a.lck.Unlock()
+	return a.pushLeft(any)
 }
 func (a *List[T]) Pop() T {
 	a.lck.Lock()
@@ -41,7 +76,7 @@ func (a *List[T]) Pop() T {
 	}
 	return ret
 }
-func (a *List[T]) PopLeft() T {
+func (a *List[T]) PopL() T {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 	var ret T
@@ -119,7 +154,6 @@ func (a *List[T]) ContainF(filter FilterFunc[T]) bool {
 	return index != -1
 
 }
-
 func (a *List[T]) Filter(filter FilterFunc[T]) []T {
 	a.lck.Lock()
 	defer a.lck.Unlock()
@@ -137,14 +171,6 @@ func (a *List[T]) Iter(iter IterFunc[int, T]) {
 	defer a.lck.Unlock()
 	a.iter(iter)
 }
-func (a *List[T]) iter(iter IterFunc[int, T]) {
-	for i, v := range a.arr {
-		if iter(i, v) {
-			return
-		}
-	}
-}
-
 func (a *List[T]) Remove(any T) *List[T] {
 	a.lck.Lock()
 	defer a.lck.Unlock()
@@ -167,25 +193,6 @@ func (a *List[T]) Remove(any T) *List[T] {
 	}
 	return a
 
-}
-func (a *List[T]) removeI(index int) *List[T] {
-	if index >= a.size() || index < 0 {
-		return a
-	}
-	//remove reference
-	a.removeRef(index)
-	a.arr = append(a.arr[:index], a.arr[index+1:]...)
-	return a
-
-}
-func (a *List[T]) removeRef(index int) {
-	if index >= a.size() || index < 0 {
-		return
-	}
-	val := reflect.ValueOf(a.arr).Index(index)
-	if val.Kind() == reflect.Pointer {
-		val.Set(reflect.Zero(val.Type()))
-	}
 }
 func (a *List[T]) RemoveI(index int) *List[T] {
 	a.lck.Lock()
@@ -214,7 +221,7 @@ func (a *List[T]) RemoveF(filter FilterFunc[T]) *List[T] {
 	return a
 
 }
-func (a *List[T]) PushRange(rge ...T) *List[T] {
+func (a *List[T]) PushR(rge ...T) *List[T] {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 	for _, t := range rge {
@@ -223,7 +230,7 @@ func (a *List[T]) PushRange(rge ...T) *List[T] {
 	return a
 
 }
-func (a *List[T]) PushArray(arr *List[T]) *List[T] {
+func (a *List[T]) PushA(arr *List[T]) *List[T] {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 	if a.size() > 0 {

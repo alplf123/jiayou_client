@@ -10,14 +10,12 @@ import (
 	"jiayou_backend_spider/list"
 	"jiayou_backend_spider/option"
 	"jiayou_backend_spider/utils/wait"
-	"net/http"
 	"net/url"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"golang.org/x/exp/maps"
 )
@@ -39,12 +37,10 @@ type Ctx struct {
 	Meta    *option.Option
 }
 
-type HookEvent interface {
-	OnConnect(*Ctx)
-	OnLoad(*Page, *Ctx)
-	OnRequest(*rod.Hijack, *Ctx)
-	OnClose(*Ctx) bool
-}
+type OnRequest func(*rod.Hijack, *Ctx)
+type OnLoad func(*Page, *Ctx)
+type OnConnect func(*Ctx)
+type OnClose func(*Ctx)
 
 type Interceptor struct {
 	Pattern string                    `json:"pattern"`
@@ -96,6 +92,10 @@ func (app *App) LoadBrowser() error {
 	}
 	for i := 0; i < app.workers; i++ {
 		if app.cursor.Next() {
+			id, name := cursor.Current().Id(), cursor.Current().Name()
+			if id == "" || name == "" {
+				return fmt.Errorf("browser cursor id or name is empty")
+			}
 			app.browsers.Push(&Browser{
 				ID:       cursor.Current().Id(),
 				Name:     cursor.Current().Name(),
@@ -105,7 +105,6 @@ func (app *App) LoadBrowser() error {
 				hookMap:  hook.NewHooks(),
 				browser:  cursor.Current(),
 				ctx:      app.ctx,
-				launcher: launcher.New(),
 			})
 		} else {
 			if cursor.Err() != nil {
@@ -129,7 +128,7 @@ func (app *App) Peek(block bool, timeout time.Duration, filters ...FilterFunc) (
 	}()
 	var popFunc = func() *Browser {
 		if filters == nil {
-			return app.browsers.PopLeft()
+			return app.browsers.PopL()
 		}
 		app.lck.Lock()
 		var b *Browser
@@ -229,21 +228,24 @@ func (app *App) Done() {
 }
 
 type Browser struct {
-	ctx      context.Context
-	app      *App
-	router   *rod.HijackRouter
-	hookMap  *hook.Hooks
-	hookEvt  HookEvent
-	rod      *rod.Browser
-	launcher *launcher.Launcher
-	browser  impl.IBrowser
-	removed  bool
-	lck      sync.Mutex
-	ID       string
-	Name     string
-	Used     int64
-	CreateAt time.Time
-	Meta     *option.Option
+	ctx          context.Context
+	app          *App
+	router       *rod.HijackRouter
+	hookMap      *hook.Hooks
+	rod          *rod.Browser
+	browser      impl.IBrowser
+	removed      bool
+	interceptors map[string]proto.NetworkResourceType
+	onRequests   []OnRequest
+	onCloses     []OnClose
+	onloads      []OnLoad
+	onConnects   []OnConnect
+	lck          sync.Mutex
+	ID           string
+	Name         string
+	Used         int64
+	CreateAt     time.Time
+	Meta         *option.Option
 }
 
 type ChainType string
@@ -260,6 +262,16 @@ const (
 	Any ChainRef = "any"
 	All ChainRef = "all"
 )
+
+type ChainErr struct {
+	error
+	Expr string
+	Type ChainType
+}
+
+func (chainErr *ChainErr) Error() string {
+	return fmt.Sprintf("%s('%s'),%s", chainErr.Type, chainErr.Expr, chainErr.error)
+}
 
 type ChainFunc func(*Chain)
 
@@ -348,22 +360,18 @@ func (chain *Chain) call() error {
 		elements, err = chain.page.ElementsX(chain.Expr)
 	}
 	if err != nil {
-		return fmt.Errorf("%s('%s') find elements falied,%w",
-			chain.Type,
-			chain.Expr,
-			err,
-		)
+		return &ChainErr{err, chain.Expr, chain.Type}
 	}
 	if len(elements) == 0 {
 		return ErrChainSkip
 	}
 	chain.elements = elements
 	if err := chain.callback(chain); err != nil {
-		return fmt.Errorf("%s('%s') callback falied,%w",
-			chain.Type,
-			chain.Expr,
-			err,
-		)
+		var e *ChainErr
+		if errors.As(err, &e) {
+			return e
+		}
+		return &ChainErr{err, chain.Expr, chain.Type}
 	}
 	return nil
 }
@@ -404,6 +412,7 @@ func (chain *Chain) ForwardNext() {
 	chain.ForwardNextN(1)
 }
 func (chain *Chain) ForwardNextN(ns ...int) {
+	var nextChains []*Chain
 	for _, n := range ns {
 		var next = chain.next
 		for n > 1 {
@@ -413,14 +422,16 @@ func (chain *Chain) ForwardNextN(ns ...int) {
 			n--
 		}
 		if next != nil {
-			chain.forward(next)
+			nextChains = append(nextChains, next)
 		}
 	}
+	chain.forward(nextChains...)
 }
 func (chain *Chain) ForwardPrev() {
 	chain.ForwardPrevN(1)
 }
 func (chain *Chain) ForwardPrevN(ns ...int) {
+	var prevChains []*Chain
 	for _, n := range ns {
 		var prev = chain.prev
 		for n > 1 {
@@ -430,9 +441,10 @@ func (chain *Chain) ForwardPrevN(ns ...int) {
 			n--
 		}
 		if prev != nil {
-			chain.forward(prev)
+			prevChains = append(prevChains, prev)
 		}
 	}
+	chain.forward(prevChains...)
 }
 func (chain *Chain) ForwardTop() {
 	temp, prev := chain.prev, chain.prev
@@ -452,7 +464,6 @@ func (chain *Chain) ForwardLast() {
 		chain.forward(temp)
 	}
 }
-
 func (chain *Chain) Index() int {
 	return chain.index
 }
@@ -471,7 +482,7 @@ type Chains struct {
 	maxForward int
 	async      bool
 	chains     *list.List[*Chain]
-	errors     []error
+	errors     *list.List[error]
 	opts       *option.Option
 	lck        sync.Mutex
 }
@@ -484,6 +495,8 @@ func (chains *Chains) wait() error {
 	for {
 		var waitCtx = context.Background()
 		var waitCancel context.CancelFunc
+		var finished bool
+		var done = make(chan struct{})
 		if chains.timeout > 0 {
 			waitCtx, waitCancel = context.WithTimeout(waitCtx, chains.timeout)
 		}
@@ -493,14 +506,16 @@ func (chains *Chains) wait() error {
 				defer wg.Done()
 				for {
 					select {
+					case <-done:
+						return
 					case <-waitCtx.Done():
-						if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
-							lck.Lock()
-							chains.errors = append(
-								chains.errors,
-								fmt.Errorf("%s('%s') timeout", chain.Type, chain.Expr),
+						if waitCtx.Err() != nil {
+							chains.errors.Push(
+								fmt.Errorf("%s('%s') %w",
+									chain.Type,
+									chain.Expr,
+									waitCtx.Err()),
 							)
-							lck.Unlock()
 						}
 						return
 					case <-ticker.C:
@@ -511,28 +526,38 @@ func (chains *Chains) wait() error {
 							}
 						}
 					}
+					lck.Lock()
+					if finished {
+						lck.Unlock()
+						break
+					}
 					chain.retried++
 					err := chain.call()
 					if err != nil {
 						if errors.Is(err, ErrChainSkip) {
+							lck.Unlock()
 							continue
 						}
+						chains.errors.PushL(err)
+						//callback error can finish chain when found elements
+						if len(chain.elements) == 0 {
+							lck.Unlock()
+							break
+						}
 					}
+					if chains.ref == Any {
+						if !finished {
+							finished = true
+							close(done)
+						}
+					}
+					lck.Unlock()
 					if len(chain.forwards) > 0 {
 						if chain.forwarded >= chains.maxForward {
 							chain.forwarded = 0
 						} else {
-							forwards.PushRange(chain.forwards...)
+							forwards.PushR(chain.forwards...)
 						}
-					}
-					if err != nil {
-						lck.Lock()
-						chains.errors = append(
-							chains.errors,
-							err,
-						)
-						lck.Unlock()
-						return
 					}
 					if chain.friend != nil {
 						if c, ok := chain.friend(); !ok {
@@ -540,11 +565,6 @@ func (chains *Chains) wait() error {
 							chain.friend = nil
 						}
 					}
-					lck.Lock()
-					if chains.ref == Any {
-						waitCancel()
-					}
-					lck.Unlock()
 					break
 				}
 			}()
@@ -557,6 +577,7 @@ func (chains *Chains) wait() error {
 		if forwards.Size() == 0 {
 			break
 		}
+		chains.errors.Clear()
 		chains.chains.Clear()
 		for _, forward := range forwards.ToArray() {
 			if !chains.chains.Contain(forward) {
@@ -566,8 +587,8 @@ func (chains *Chains) wait() error {
 		}
 		forwards.Clear()
 	}
-	if len(chains.errors) > 0 {
-		return chains.errors[0]
+	if chains.errors.Size() > 0 {
+		return chains.errors.PopL()
 	}
 	return nil
 }
@@ -656,6 +677,28 @@ type Page struct {
 	page    *rod.Page
 }
 
+func (bitPage *Page) WaitSelector(expr string, callback ChainCallback) error {
+	return bitPage.Chains().Selector(expr, callback).Wait()
+}
+func (bitPage *Page) WaitXPath(expr string, callback ChainCallback) error {
+	return bitPage.Chains().XPath(expr, callback).Wait()
+}
+func (bitPage *Page) WaitJs(expr string, args []any, callback ChainCallback) error {
+	return bitPage.Chains().Js(expr, args, callback).Wait()
+}
+func (bitPage *Page) Chains() *Chains {
+	return &Chains{
+		page:       bitPage.page,
+		interval:   time.Second,
+		timeout:    time.Minute,
+		maxForward: 1,
+		async:      true,
+		ref:        Any,
+		chains:     list.New[*Chain](),
+		errors:     list.New[error](),
+		opts:       option.New(nil),
+	}
+}
 func (bitPage *Page) Load(_url string) error {
 	_, err := url.Parse(_url)
 	if err != nil {
@@ -667,29 +710,12 @@ func (bitPage *Page) Load(_url string) error {
 	}
 	return nil
 }
-func (bitPage *Page) Chains() *Chains {
-	return &Chains{
-		page:       bitPage.page,
-		interval:   time.Second,
-		timeout:    time.Second * 30,
-		async:      true,
-		ref:        Any,
-		maxForward: 1,
-		chains:     list.New[*Chain](),
-		opts:       option.New(nil),
-	}
-}
 func (bitPage *Page) WaitLoad() error {
 	err := bitPage.page.WaitLoad()
 	if err == nil {
 		bitPage.browser.dispatchOnLoadHookEvt(bitPage, bitPage.browser.makeCtx())
 	}
 	return err
-}
-func (bitPage *Page) Timeout(timeout time.Duration) {
-	if timeout > 0 {
-		bitPage.page = bitPage.page.Timeout(timeout)
-	}
 }
 func (bitPage *Page) Close() error {
 	return bitPage.page.Close()
@@ -707,30 +733,25 @@ func (browser *Browser) makeCtx() *Ctx {
 	}
 }
 func (browser *Browser) dispatchOnConnectHookEvt(ctx *Ctx) {
-	if browser.hookEvt != nil {
-		browser.hookEvt.OnConnect(ctx)
+	for _, conn := range browser.onConnects {
+		conn(ctx)
 	}
 }
 func (browser *Browser) dispatchOnLoadHookEvt(page *Page, ctx *Ctx) {
-	if browser.hookEvt != nil {
-		browser.hookEvt.OnLoad(page, ctx)
+	for _, onload := range browser.onloads {
+		onload(page, ctx)
 	}
-}
-func (browser *Browser) dispatchDefaultRequest(req *rod.Hijack) {
-	req.LoadResponse(http.DefaultClient, true)
 }
 func (browser *Browser) dispatchOnRequestHookEvt(req *rod.Hijack, ctx *Ctx) {
-	if browser.hookEvt != nil {
-		browser.hookEvt.OnRequest(req, ctx)
-		return
+	for _, onReq := range browser.onRequests {
+		onReq(req, ctx)
 	}
-	browser.dispatchDefaultRequest(req)
 }
-func (browser *Browser) dispatchOnCloseHookEvt(ctx *Ctx) bool {
-	if browser.hookEvt != nil {
-		return browser.hookEvt.OnClose(ctx)
+func (browser *Browser) dispatchOnCloseHookEvt(ctx *Ctx) {
+	for _, onClose := range browser.onCloses {
+		onClose(ctx)
 	}
-	return true
+
 }
 func (browser *Browser) dispatchRequest(handler *rod.Hijack) {
 	if !browser.Ready() {
@@ -751,87 +772,85 @@ func (browser *Browser) switchPage(source string, newPage bool) (*rod.Page, erro
 		defaultPage, err = browser.rod.Page(proto.TargetCreateTarget{})
 	} else {
 		if len(pages) == 0 {
-			defaultPage, err = browser.rod.Page(proto.TargetCreateTarget{})
+			err = errors.New("there is no default page")
 		} else {
 			defaultPage = pages.First()
 		}
 	}
-	if defaultPage == nil {
-		return nil, errors.New("switch page failed")
+	if err != nil {
+		return nil, err
 	}
 	return defaultPage.Context(browser.ctx), defaultPage.Navigate(source)
 }
 func (browser *Browser) reset() {
-	if browser.rod != nil && browser.launcher != nil {
+	if browser.rod != nil {
 		browser.dispatchOnCloseHookEvt(browser.makeCtx())
-		browser.hookEvt = nil
 		browser.hookMap.Clear()
 		browser.Meta.Clear()
 		if browser.router != nil {
 			browser.router.Stop()
 			browser.router = nil
 		}
-		if browser.rod != nil {
-			browser.rod.Close()
+		if browser.browser != nil {
+			browser.browser.Kill()
 		}
+		browser.browser = nil
 		browser.rod = nil
-		browser.launcher = nil
 	}
 }
-func (browser *Browser) AddIntercepts(intercepts ...Interceptor) error {
-	if browser.rod != nil {
-		if browser.router == nil {
-			browser.router = browser.rod.HijackRequests()
-			go browser.router.Run()
-		}
-		for _, interceptor := range intercepts {
-			err := browser.router.Add(interceptor.Pattern, interceptor.Network, browser.dispatchRequest)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return ErrBrowserConnectFirst
+func (browser *Browser) OnRequest(req ...OnRequest) {
+	browser.lck.Lock()
+	defer browser.lck.Unlock()
+	browser.onRequests = append(browser.onRequests, req...)
 }
-func (browser *Browser) UseEvt(hookEvt HookEvent) {
-	if hookEvt != nil {
-		browser.hookEvt = hookEvt
-	}
+func (browser *Browser) OnConnect(conn ...OnConnect) {
+	browser.lck.Lock()
+	defer browser.lck.Unlock()
+	browser.onConnects = append(browser.onConnects, conn...)
+}
+func (browser *Browser) OnClose(close ...OnClose) {
+	browser.lck.Lock()
+	defer browser.lck.Unlock()
+	browser.onCloses = append(browser.onCloses, close...)
+}
+func (browser *Browser) OnLoad(load ...OnLoad) {
+	browser.lck.Lock()
+	defer browser.lck.Unlock()
+	browser.onloads = append(browser.onloads, load...)
+}
+func (browser *Browser) AddInterceptor(pattern string, network proto.NetworkResourceType) {
+	browser.lck.Lock()
+	defer browser.lck.Unlock()
+	browser.interceptors[pattern] = network
 }
 func (browser *Browser) Ready() bool {
 	browser.lck.Lock()
 	defer browser.lck.Unlock()
-	return browser.rod != nil && browser.launcher != nil
-}
-func (browser *Browser) SetProxy(proxy string) {
-	browser.lck.Lock()
-	defer browser.lck.Unlock()
-	browser.launcher.Proxy(proxy)
+	return browser.rod != nil
 }
 func (browser *Browser) Pid() int {
-	if browser.launcher != nil {
-		return browser.launcher.PID()
+	if browser.browser != nil {
+		return browser.browser.Pid()
 	}
 	return -1
 }
 func (browser *Browser) Cleanup() {
-	if browser.launcher != nil {
-		browser.launcher.Cleanup()
+	if browser.browser != nil {
+		browser.browser.Cleanup()
 	}
 }
 func (browser *Browser) Kill() {
-	if browser.launcher != nil {
-		browser.launcher.Kill()
+	if browser.browser != nil {
+		browser.browser.Kill()
 	}
 }
-func (browser *Browser) NewHook(hookName string) *hook.Hook {
-	return browser.hookMap.New(hookName)
+func (browser *Browser) Hook(name string) *hook.Hook {
+	return browser.hookMap.New(name)
 }
 func (browser *Browser) Connect() error {
 	if browser.rod == nil {
 		r := rod.New().NoDefaultDevice()
-		c, err := browser.browser.OnLaunch(browser.launcher)
+		c, err := browser.browser.Open()
 		if err != nil {
 			return err
 		}
@@ -840,11 +859,21 @@ func (browser *Browser) Connect() error {
 			return err
 		}
 		browser.rod = r
+		if len(browser.interceptors) > 0 {
+			browser.router = browser.rod.HijackRequests()
+			for pattern, network := range browser.interceptors {
+				err = browser.router.Add(pattern, network, browser.dispatchRequest)
+				if err != nil {
+					return err
+				}
+			}
+			go browser.router.Run()
+		}
 		browser.dispatchOnConnectHookEvt(browser.makeCtx())
 	}
 	return nil
 }
-func (browser *Browser) DefaultPage() (*Page, error) {
+func (browser *Browser) Blank() (*Page, error) {
 	page, err := browser.switchPage("", false)
 	if err != nil {
 		return nil, err
@@ -890,6 +919,7 @@ func WithCursor(cursor impl.BrowserCursor) Option {
 		app.cursor = cursor
 	}
 }
+
 func New(opts ...Option) *App {
 	var app = &App{
 		workers:  1,

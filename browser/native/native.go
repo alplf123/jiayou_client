@@ -1,6 +1,7 @@
 package native
 
 import (
+	"errors"
 	"fmt"
 	"jiayou_backend_spider/browser/impl"
 	"jiayou_backend_spider/config"
@@ -13,19 +14,38 @@ import (
 	"github.com/go-rod/rod/lib/launcher/flags"
 )
 
+var _ impl.IBrowser = &Browser{}
+
 type Browser struct {
 	id, name string
+	launch   *launcher.Launcher
 	native   *Native
 }
 
-func (browser *Browser) Id() string {
-	return browser.id
+func (browser *Browser) Pid() int {
+	if browser.launch != nil {
+		return browser.launch.PID()
+	}
+	return -1
 }
-func (browser *Browser) Name() string {
-	return browser.name
+
+func (browser *Browser) Cleanup() {
+	if browser.launch != nil {
+		browser.launch.Cleanup()
+	}
 }
-func (browser *Browser) OnLaunch(launch *launcher.Launcher) (string, error) {
-	launch.
+
+func (browser *Browser) Kill() {
+	if browser.launch != nil {
+		browser.launch.Kill()
+	}
+}
+
+func (browser *Browser) Open() (string, error) {
+	if browser.launch == nil {
+		return "", errors.New("no launcher available")
+	}
+	browser.launch.
 		Headless(browser.native.opts.HeadLess).
 		Leakless(browser.native.opts.LeakLess).
 		RemoteDebuggingPort(browser.native.opts.DebugPort).
@@ -36,13 +56,20 @@ func (browser *Browser) OnLaunch(launch *launcher.Launcher) (string, error) {
 		var key = strings.TrimSpace(kv[0])
 		if key != "" && strings.HasPrefix(key, "--") {
 			if len(kv) == 2 {
-				launch.Set(flags.Flag(key), kv[1])
+				browser.launch.Set(flags.Flag(key), kv[1])
 			} else {
-				launch.Set(flags.Flag(key))
+				browser.launch.Set(flags.Flag(key))
 			}
 		}
 	}
-	return launch.Launch()
+	return browser.launch.Launch()
+}
+
+func (browser *Browser) Id() string {
+	return browser.id
+}
+func (browser *Browser) Name() string {
+	return browser.name
 }
 
 type Options struct {
@@ -71,7 +98,7 @@ func (native *Native) Prepare() error {
 func (native *Native) Current() impl.IBrowser { return native.current }
 func (native *Native) Next() bool {
 	defer func() { atomic.AddInt64(&native.id, 1) }()
-	var browser = &Browser{native: native}
+	var browser = &Browser{native: native, launch: launcher.New()}
 	browser.id = strconv.FormatInt(native.id, 10)
 	var title = browser.id
 	if native.opts.TitlePrefix != "" {

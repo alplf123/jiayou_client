@@ -1,9 +1,5 @@
 package impl
 
-import (
-	"github.com/go-rod/rod/lib/launcher"
-)
-
 type BrowserCursor interface {
 	Prepare() error
 
@@ -19,5 +15,8 @@ type BrowserCursor interface {
 type IBrowser interface {
 	Id() string
 	Name() string
-	OnLaunch(*launcher.Launcher) (string, error)
+	Pid() int
+	Cleanup()
+	Kill()
+	Open() (string, error)
 }

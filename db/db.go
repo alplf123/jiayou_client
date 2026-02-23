@@ -570,7 +570,7 @@ func (ss *Sessions) ForName(name string) *Sessions {
 	})
 	ss.ss.Clear()
 	ss.ss = list.New[*Session]()
-	ss.ss.PushRange(sess...)
+	ss.ss.PushR(sess...)
 	return ss
 }
 func (ss *Sessions) ForHost(host string) *Sessions {
@@ -579,7 +579,7 @@ func (ss *Sessions) ForHost(host string) *Sessions {
 	})
 	ss.ss.Clear()
 	ss.ss = list.New[*Session]()
-	ss.ss.PushRange(sess...)
+	ss.ss.PushR(sess...)
 	return ss
 }
 func (ss *Sessions) ForScheme(scheme Scheme) *Sessions {
@@ -588,7 +588,7 @@ func (ss *Sessions) ForScheme(scheme Scheme) *Sessions {
 	})
 	ss.ss.Clear()
 	ss.ss = list.New[*Session]()
-	ss.ss.PushRange(sess...)
+	ss.ss.PushR(sess...)
 	return ss
 }
 func (ss *Sessions) LookUp() (*Session, error) {

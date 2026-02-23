@@ -10,24 +10,40 @@ import (
 	"jiayou_backend_spider/option"
 	"jiayou_backend_spider/request"
 	"jiayou_backend_spider/utils"
+	"jiayou_backend_spider/utils/wait"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/launcher/flags"
 )
+
+var _ impl.IBrowser = &Browser{}
 
 type Browser struct {
 	bit      *Bit
 	id, name string
+	pid      int
 }
 
+func (browser *Browser) kill(pid int) {
+	if pid > 0 {
+		CloseWindow(browser.bit.debugHost()+ApiCloseWindow, strconv.Itoa(pid), request.DefaultRequestOptions())
+		wait.Wait(func(context *wait.Context) (any, bool) {
+			return nil, !utils.AliveProcess(pid)
+		}, wait.WithTimeout(5*time.Second), wait.WithBackoffFunc(utils.FixedDuration(time.Second)))
+		if utils.AliveProcess(pid) {
+			utils.KillProcess(pid)
+		}
+	}
+}
 func (browser *Browser) buildArgs() []string {
 	var temp []string
 	if browser.bit.opts.OriginOption.FingerPrint.LaunchArgs != "" {
 		temp = append(temp, strings.Split(browser.bit.opts.OriginOption.FingerPrint.LaunchArgs, ",")...)
 	}
 	temp = append(temp, browser.bit.opts.Args...)
-	var args []string = make([]string, 0)
+	var args []string
 	for _, arg := range temp {
 		kv := strings.Split(arg, "=")
 		var key = strings.TrimSpace(kv[0])
@@ -41,8 +57,27 @@ func (browser *Browser) buildArgs() []string {
 	}
 	return args
 }
-func (browser *Browser) OnLaunch(launch *launcher.Launcher) (string, error) {
-	ws, _, err := OpenWindow(browser.bit.debugHost()+ApiOpenWindow,
+func (browser *Browser) Pid() int {
+	return browser.pid
+}
+func (browser *Browser) Cleanup() {
+	if browser.id != "" {
+		ClearWindow(browser.bit.debugHost()+ApiCloseWindow, browser.id, request.DefaultRequestOptions())
+	}
+}
+func (browser *Browser) Kill() {
+	browser.kill(browser.pid)
+}
+func (browser *Browser) Open() (string, error) {
+	alive, pid, err := WindowAlive(browser.bit.debugHost()+ApiWindowAlive, browser.id, request.DefaultRequestOptions())
+	if err != nil {
+		return "", err
+	}
+	if alive && pid > 0 {
+		browser.kill(pid)
+	}
+	time.Sleep(time.Second)
+	ws, pid, err := OpenWindow(browser.bit.debugHost()+ApiOpenWindow,
 		browser.id,
 		browser.buildArgs(),
 		true,
@@ -50,6 +85,7 @@ func (browser *Browser) OnLaunch(launch *launcher.Launcher) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	browser.pid = pid
 	return ws, nil
 }
 func (browser *Browser) Id() string {
@@ -116,7 +152,7 @@ func (bit *Bit) Prepare() error {
 		if groups == nil {
 			break
 		}
-		groupRespList.PushRange(groups...)
+		groupRespList.PushR(groups...)
 		groupPage++
 	}
 	var groups = groupRespList.Filter(func(rm RespMap) bool {
@@ -155,23 +191,25 @@ func (bit *Bit) Next() bool {
 				bit.err = err
 				return false
 			}
-			bit.browsers.PushRange(&Browser{
+			bit.browsers.PushR(&Browser{
 				bit:  bit,
 				id:   browser["id"],
 				name: browser["name"],
+				pid:  -1,
 			})
 		} else {
 			for _, browser := range browsers {
-				bit.browsers.PushRange(&Browser{
+				bit.browsers.PushR(&Browser{
 					bit:  bit,
 					id:   browser["id"],
 					name: browser["name"],
+					pid:  -1,
 				})
 			}
 		}
 		bit.browserPage++
 	}
-	bit.current = bit.browsers.PopLeft()
+	bit.current = bit.browsers.PopL()
 	return true
 }
 func (bit *Bit) Current() impl.IBrowser {
