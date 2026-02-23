@@ -720,6 +720,11 @@ func (bitPage *Page) WaitLoad() error {
 func (bitPage *Page) Close() error {
 	return bitPage.page.Close()
 }
+func (bitPage *Page) Timeout(timeout time.Duration) {
+	if timeout > 0 {
+		bitPage.page = bitPage.page.Timeout(timeout)
+	}
+}
 func (bitPage *Page) RodPage() *rod.Page {
 	return bitPage.page
 }
