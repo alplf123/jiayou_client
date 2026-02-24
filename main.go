@@ -15,9 +15,7 @@ func main() {
 	if len(args) > 0 {
 		common.GlobalDevice = args[0]
 		common.GlobalToken = args[1]
-
 	}
-
 	var app = engine.FromConfigFile(config)
 	app.OnOptions(func(engine *engine.Engine) error {
 		if err := service.OnInit(engine); err != nil {

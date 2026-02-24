@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"jiayou_backend_spider/option"
 	"net"
+	"net/http"
 	"strings"
 )
 
@@ -32,7 +33,33 @@ var ErrComment = "评论文件异常"
 var ErrLoadProxy = "加载代理失败"
 var ErrProxyNotConfig = "代理未配置"
 var ErrBadVless = "含有无效的vless链接"
+var ErrBadProxy = "无效的代理链接"
+var ErrVlessOnly = "只支持vless代理"
 var ErrProxyNotBound = "代理未绑定，请重启客户端"
+var ErrBrowserPeekTimeout = "指纹浏览器加载超时"
+var ErrBrowserLoadPage = "指纹浏览器加载页面失败"
+var ErrBrowserLoadUrl = "指纹浏览器加载链接失败"
+var ErrBrowserWaitLoad = "指纹浏览器等待页面完成加载失败"
+var ErrBrowserConnect = "指纹浏览器连接失败"
+var ErrBrowserClickLoginButton = "指纹浏览器点击登录失败"
+var ErrBrowserClickEmailButton = "指纹浏览器选择邮件登录方式失败"
+var ErrBrowserSwitchEmailButton = "指纹浏览器切换邮件登录方式失败"
+var ErrBrowserInputUser = "指纹浏览器输入账号失败"
+var ErrBrowserInputPwd = "指纹浏览器输入密码失败"
+var ErrBrowserLogin = "指纹浏览器登录失败"
+var ErrBrowserProcessVerify = "指纹浏览器处理过程失败"
+var ErrBrowserUserDataNotFound = "指纹浏览器未发现用户信息"
+var ErrBrowserHookUserInfoTimeout = "指纹浏览器拦截用户消息超时"
+var ErrBrowserClickSendEmail = "指纹浏览器点击发送邮件失败"
+var ErrBrowserInputEmailCode = "指纹浏览器输入邮箱验证码失败"
+var ErrBrowserInput2FACode = "指纹浏览器输入2fa验证码失败"
+var ErrBrowserClickEmailNext = "指纹浏览器点击邮箱下一步失败"
+var ErrBrowserClick2FANext = "指纹浏览器点击2fa下一步失败"
+var ErrBrowserUpdateProxy = "指纹浏览器更新代理失败"
+var ErrEmailReadCode = "邮件读取验证码失败"
+var ErrProcessCaptcha = "验证码处理失败"
+var ErrAccountMaximium = "账号登录次数过多"
+var ErrTwoFA = "2fa计算失败"
 
 type ErrBase struct {
 	tag    string
@@ -64,7 +91,13 @@ func (b *ErrBase) RawError() error {
 	return b.err
 }
 func (b *ErrBase) WithError(err error) *ErrBase {
-	b.err = err
+	var e *ErrBase
+	if errors.As(err, &e) {
+		*b = *e
+		b.fields = e.fields.Clone()
+	} else {
+		b.err = err
+	}
 	return b
 }
 func (b *ErrBase) WithRetry(retry bool) *ErrBase {
@@ -78,7 +111,7 @@ func (b *ErrBase) ShouldRetry() bool {
 	return b.retry
 }
 
-type Retry interface {
+type IRetry interface {
 	ShouldRetry() bool
 }
 
@@ -89,11 +122,6 @@ type ApiError struct {
 }
 
 func (err *ApiError) WithCode(code int) *ApiError {
-	//login expired
-	if code == 8 {
-		err.WithTag(ErrLoginExpired)
-		err.WithRetry(false)
-	}
 	err.Code = code
 	err.fields.Set("code", code)
 	return err
@@ -108,15 +136,14 @@ type NetError struct {
 	*ErrBase
 }
 
-func (err *NetError) WithError(e error) *NetError {
+func (netErr *NetError) ShouldRetry(e error) bool {
 	var v *net.OpError
 	if errors.As(e, &v) {
 		if v.Timeout() || v.Temporary() {
-			err.retry = true
+			return true
 		}
 	}
-	_ = err.ErrBase.WithError(e)
-	return err
+	return false
 }
 
 type StatusError struct {
@@ -129,9 +156,18 @@ func (err *StatusError) WithStatus(status int) *StatusError {
 	err.fields.Set("status", status)
 	return err
 }
+func (err *StatusError) ShouldRetry() bool {
+	return err.Status == http.StatusInternalServerError ||
+		err.Status == http.StatusBadGateway ||
+		err.Status == http.StatusServiceUnavailable ||
+		err.Status == http.StatusGatewayTimeout
+}
 
+func Retry(err error) *ErrBase {
+	return NewBase().WithRetry(true).WithError(err)
+}
 func NoRetry(err error) *ErrBase {
-	return NewBase().WithRetry(false).WithError(err)
+	return NewBase().WithError(err)
 }
 func IsErrBase(err error) bool {
 	var errBase *ErrBase
@@ -158,33 +194,23 @@ func ParseErrBase(err string) (*ErrBase, bool) {
 	return nil, false
 }
 func NewBase() *ErrBase {
-	return &ErrBase{fields: option.New(nil), retry: true}
-}
-func NewSystemError() *ErrBase {
-	return NewBase().WithTag(ErrTaskSystem)
+	return &ErrBase{fields: option.New(nil)}
 }
 func NewApiError() *ApiError {
-	var apiErr = &ApiError{
+	return &ApiError{
 		ErrBase: NewBase(),
 	}
-	apiErr.WithTag(ErrApi)
-	return apiErr
 }
 func NewStatusError(code int) *StatusError {
-	var statusErr = &StatusError{
-		ErrBase: NewBase(),
-	}
-	statusErr.WithTag(ErrStatus)
-	statusErr.WithStatus(code)
-	return statusErr
+	return (&StatusError{
+		ErrBase: NewBase().WithTag(ErrStatus),
+	}).WithStatus(code)
 }
 func NewBadResponseError() *ErrBase {
 	return NewBase().WithTag(ErrBadResponse)
 }
 func NewNetError() *NetError {
-	var netErr = &NetError{
-		ErrBase: NewBase(),
+	return &NetError{
+		ErrBase: NewBase().WithTag(ErrNet),
 	}
-	netErr.WithTag(ErrNet)
-	return netErr
 }

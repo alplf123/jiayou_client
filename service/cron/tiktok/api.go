@@ -7,10 +7,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"jiayou_backend_spider/common"
+	gcommon "jiayou_backend_spider/common"
 	"jiayou_backend_spider/errorx"
 	"jiayou_backend_spider/request"
-	gcommon "jiayou_backend_spider/service/common"
+	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/utils"
 	"math/rand/v2"
@@ -159,10 +159,10 @@ func getStore(route string, options *request.Options) (*UploadStore, *UploadAuth
 	uploadAuthReqOptions := options.Clone()
 	var date = time.Now().UTC()
 	var currentDataFormat = date.Format("20060102T150405Z")
-	var signKey = common.Hmac256([]byte(currentDataFormat[:8]), []byte("AWS4"+auth.SecretAccessKey))
-	signKey = common.Hmac256([]byte("US-TTP"), signKey)
-	signKey = common.Hmac256([]byte("vod"), signKey)
-	signKey = common.Hmac256([]byte("aws4_request"), signKey)
+	var signKey = gcommon.Hmac256([]byte(currentDataFormat[:8]), []byte("AWS4"+auth.SecretAccessKey))
+	signKey = gcommon.Hmac256([]byte("US-TTP"), signKey)
+	signKey = gcommon.Hmac256([]byte("vod"), signKey)
+	signKey = gcommon.Hmac256([]byte("aws4_request"), signKey)
 	var params = strings.Split(route, "&")
 	sort.Strings(params)
 	var canonicalBody = []string{
@@ -178,12 +178,12 @@ func getStore(route string, options *request.Options) (*UploadStore, *UploadAuth
 		"AWS4-HMAC-SHA256",
 		currentDataFormat,
 		currentDataFormat[:8] + "/US-TTP/vod/aws4_request",
-		hex.EncodeToString(common.Sha256([]byte(strings.Join(canonicalBody, "\n")))),
+		hex.EncodeToString(gcommon.Sha256([]byte(strings.Join(canonicalBody, "\n")))),
 	}
 	var authorization = fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s, SignedHeaders=%s, Signature=%s",
 		auth.AccessKeyId+"/"+currentDataFormat[:8]+"/US-TTP/vod/aws4_request",
 		"x-amz-date;x-amz-security-token",
-		hex.EncodeToString(common.Hmac256([]byte(strings.Join(signBody, "\n")), signKey)),
+		hex.EncodeToString(gcommon.Hmac256([]byte(strings.Join(signBody, "\n")), signKey)),
 	)
 	uploadAuthReqOptions.Header.Set("x-amz-security-token", auth.SessionToken)
 	uploadAuthReqOptions.Header.Set("x-amz-date", currentDataFormat)
@@ -576,7 +576,7 @@ func WebVideoDetail(url string, reqOption *request.Options) (*Detail, error) {
 	return detail, nil
 }
 func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.Options) error {
-	fileSize, err := common.GetFileSize(file)
+	fileSize, err := gcommon.GetFileSize(file)
 	if err != nil {
 		return model.NewBase().WithTag(model.ErrVideoFile).WithError(fmt.Errorf("get file size failed: %w", err))
 	}
@@ -605,7 +605,7 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 	if err != nil {
 		return fmt.Errorf("get video store failed: %w", err)
 	}
-	pngCrc32, err := common.GenerateCrc32(firstFrame)
+	pngCrc32, err := gcommon.GenerateCrc32(firstFrame)
 	if err != nil {
 		return fmt.Errorf("png crc32 failed,%w", err)
 	}
@@ -692,7 +692,7 @@ func WebVideoPublish(file string, params UploadVideoParams, reqOption *request.O
 			for i := 0; i < defaultUploadRetry; i++ {
 				if err := run(); err != nil {
 					lastErr = err
-					gcommon.DefaultLogger.Warn("upload part failed", zap.Int("retry", i+1), zap.Error(err))
+					common.DefaultLogger.Warn("upload part failed", zap.Int("retry", i+1), zap.Error(err))
 				} else {
 					break
 				}

@@ -2,7 +2,6 @@ package cron
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"jiayou_backend_spider/cron"
 	"jiayou_backend_spider/engine"
@@ -11,7 +10,6 @@ import (
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/service/xray"
 	"jiayou_backend_spider/utils"
-	"net"
 	"sync"
 	"time"
 
@@ -20,11 +18,9 @@ import (
 
 func ShouldRetry(err error) bool {
 	switch v := err.(type) {
-	case *net.OpError:
-		if v.Timeout() || v.Temporary() {
-			return true
-		}
-	case model.Retry:
+	case *model.ErrBase:
+		return v.ShouldRetry()
+	case model.IRetry:
 		return v.ShouldRetry()
 	case interface{ Unwrap() error }:
 		return ShouldRetry(v.Unwrap())
@@ -47,8 +43,7 @@ func OnInit(app *engine.Engine) error {
 	return nil
 }
 func OnLoad(app *engine.Engine) error {
-	common.GBrowser, _ = app.Browser()
-	common.GBitBrowserOptions = app.Options().Browser.BitOptions
+
 	fmt.Println(tiktok.DyDeviceSync(nil, nil))
 	distribute, err := app.Distribute()
 	if err != nil {
@@ -66,10 +61,7 @@ func OnLoad(app *engine.Engine) error {
 			if common.XrayProcess == nil {
 				if err := xray.StartXray(); err != nil {
 					logger.Error("xray start failed", zap.Error(err))
-					if !errors.Is(err, &model.ErrBase{}) {
-						return model.NewBase().WithTag(model.ErrXray).WithError(err)
-					}
-					return err
+					return model.NewBase().WithTag(model.ErrXray).WithError(err)
 				}
 				logger.Info("xray loaded", zap.String("xray", common.DefaultXrayPath))
 				logger.Info("xray config loaded", zap.String("xray", common.DefaultXrayConfig))

@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"hash/crc32"
 	"io"
 	"os"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/mojocn/base64Captcha"
-	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
 const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -24,12 +22,9 @@ const DefaultExpiredToken = 24 * 30 * 3600
 const DefaultCaptchaExpired = 5 * time.Minute
 
 var DefaultDomain = "http://zlku49474541.vicp.fun"
-
 var DefaultJwtKey = []byte("FiAVkmPYIgFY1osjyKRufkxkHgtCS1Ff")
 
 const DefaultKeyIssuer = "jiayou"
-
-var DefaultFFmpegPath = "ffmpeg.exe"
 
 type Claims struct {
 	UserID   uint   `json:"id"`
@@ -77,26 +72,7 @@ func GenerateCaptcha() (string, string) {
 	var id, engine = base64Captcha.GenerateCaptcha("", conf)
 	return id, base64.StdEncoding.EncodeToString(engine.BinaryEncoding())
 }
-func GenerateVideoFirstFrame(file string) ([]byte, error) {
-	buf := bytes.NewBuffer(nil)
-	err := ffmpeg.Input(file).
-		Silent(true).
-		Output("pipe:", ffmpeg.KwArgs{
-			"ss":      "00:00:00",
-			"vframes": 1,
-			"vcodec":  "png",
-			"f":       "image2pipe",
-			"pix_fmt": "rgb24",
-		}).
-		SetFfmpegPath(DefaultFFmpegPath).
-		WithOutput(buf).
-		Run()
-	if err != nil {
-		return nil, fmt.Errorf("ffmpeg run failed,%w", err)
-	}
-	return buf.Bytes(), nil
 
-}
 func GenerateCrc32(data any) (uint32, error) {
 	if data == nil {
 		return 0, nil

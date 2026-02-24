@@ -3,6 +3,7 @@ package service
 import (
 	"jiayou_backend_spider/engine"
 	"jiayou_backend_spider/service/api"
+	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/cron"
 	"jiayou_backend_spider/service/ffmpeg"
 	"jiayou_backend_spider/service/xray"
@@ -18,6 +19,9 @@ func OnInit(app *engine.Engine) error {
 	return nil
 }
 func OnLoad(app *engine.Engine) error {
+	if err := common.OnLoad(app); err != nil {
+		return err
+	}
 	if err := ffmpeg.OnLoad(app); err != nil {
 		return err
 	}

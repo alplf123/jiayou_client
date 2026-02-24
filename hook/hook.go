@@ -49,25 +49,25 @@ type Hooks struct {
 	lck   sync.Mutex
 }
 
-func (hmap *Hooks) Get(name string) *Hook {
-	hmap.lck.Lock()
-	defer hmap.lck.Unlock()
-	if val, ok := hmap.hooks[name]; ok {
+func (hooks *Hooks) Get(name string) *Hook {
+	hooks.lck.Lock()
+	defer hooks.lck.Unlock()
+	if val, ok := hooks.hooks[name]; ok {
 		return val
 	}
 	return nil
 }
-func (hmap *Hooks) New(name string) *Hook {
-	hmap.lck.Lock()
-	defer hmap.lck.Unlock()
-	hmap.hooks[name] = &Hook{s: make(chan struct{}, 1)}
-	return hmap.hooks[name]
+func (hooks *Hooks) New(name string) *Hook {
+	hooks.lck.Lock()
+	defer hooks.lck.Unlock()
+	hooks.hooks[name] = &Hook{s: make(chan struct{}, 1)}
+	return hooks.hooks[name]
 }
-func (hmap *Hooks) Clear() {
-	hmap.lck.Lock()
-	defer hmap.lck.Unlock()
-	for k := range hmap.hooks {
-		delete(hmap.hooks, k)
+func (hooks *Hooks) Clear() {
+	hooks.lck.Lock()
+	defer hooks.lck.Unlock()
+	for k := range hooks.hooks {
+		delete(hooks.hooks, k)
 	}
 }
 

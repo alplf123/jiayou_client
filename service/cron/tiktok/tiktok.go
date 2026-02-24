@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -31,6 +32,22 @@ const (
 	PatternUpdateAvatar    = "pattern_update_avatar"
 	PatternDeviceSync      = "pattern_device_sync"
 )
+
+func apiDeviceSync(info map[string]any) error {
+	resp, err := request.PostJson(gcommon.DefaultDomain+"/tiktok/devices/sync", info, request.DefaultRequestOptions())
+	if err != nil {
+		return model.NewNetError().WithError(err)
+	}
+	if resp.Status() != 200 {
+		return model.NewStatusError(resp.Status())
+	}
+	var data = gjson.Parse(resp.Text())
+	var code = data.Get("code").Int()
+	if code != 0 {
+		return model.NewApiError().WithCode(int(code)).WithMessage(data.Get("message").String())
+	}
+	return nil
+}
 
 func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	var params model.WebAddCommentTaskArg
@@ -272,9 +289,9 @@ func DyExpiredDevice(ctx context.Context, task *cron.Task) error {
 	return nil
 }
 func DyDeviceSync(ctx context.Context, task *cron.Task) error {
-	_browser := common.GBrowser.Peek(false, common.DefaultBrowserTryPeek)
+	_browser := common.GBrowser.Peek(false, common.DefaultBrowserTryPeekTimeout)
 	if _browser == nil {
-		return errors.New("browser try peek timeout")
+		return model.NoRetry(nil).WithTag(model.ErrBrowserPeekTimeout)
 	}
 	if err := bit.UpdateProxy(
 		fmt.Sprintf(
@@ -287,24 +304,26 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		common.DefaultProxy,
 		request.DefaultRequestOptions(),
 	); err != nil {
-		return err
+		return model.NoRetry(err).WithTag(model.ErrBrowserUpdateProxy)
 	}
-	if err := _browser.Connect(); err != nil {
-		return fmt.Errorf("browser connect fail,%w", err)
-	}
-	_browser.Hook(loginHook)
+	_browser.AddInterceptor("", "")
 	_browser.OnRequest(onRequest)
+	var loginHook = _browser.Hook(loginHook)
+	if err := _browser.Connect(); err != nil {
+		return model.NoRetry(err).WithTag(model.ErrBrowserConnect)
+	}
 	var page, err = _browser.Blank()
 	if err != nil {
-		return fmt.Errorf("blank page failed,%w", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserLoadPage)
 	}
+	page.Timeout(common.DefaultBrowserPageTimeout)
 	err = page.Load("https://www.tiktok.com")
 	if err != nil {
-		return err
+		return model.NoRetry(err).WithTag(model.ErrBrowserLoadUrl)
 	}
 	err = page.WaitLoad()
 	if err != nil {
-		return fmt.Errorf("wait load failed,%w", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserWaitLoad)
 	}
 	var processLoginButton = func() error {
 		loginEle, err := page.RodPage().Element("#top-right-action-bar-login-button")
@@ -430,7 +449,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 			time.Sleep(time.Second * 5)
 			maximumAttemptsErr, _ := page.RodPage().ElementsX("//span[text()='Maximum number of attempts reached. Try again later.']")
 			if !maximumAttemptsErr.Empty() {
-				return errors.New("account maximum number of attempts reached")
+				return model.NoRetry(nil).WithTag(model.ErrAccountMaximium)
 			}
 			captchaImgs, _ = page.RodPage().Elements("img[alt='Captcha']")
 			if len(captchaImgs) > 0 {
@@ -519,7 +538,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 				}
 				var sendStart = time.Now().UTC()
 				if err := processClickSendEmail(); err != nil {
-					return err
+					return model.NoRetry(err).WithTag(model.ErrBrowserClickSendEmail)
 				}
 				if err := page.Chains().
 					//verify captcha
@@ -546,13 +565,14 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							sendStart,
 						)
 						if err != nil {
-							return err
+							return model.Retry(err).WithTag(model.ErrEmailReadCode)
 						}
 						err = processDigitCode(code)
 						if err != nil {
-							return err
+							return model.Retry(err).WithTag(model.ErrBrowserInputEmailCode)
 						}
-						return processClickEmailNextButton()
+						err = processClickEmailNextButton()
+						return model.Retry(err).WithTag(model.ErrBrowserClickEmailNext)
 					}).WaitAny(); err != nil {
 					return err
 				}
@@ -564,7 +584,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							return err
 						}
 						if err := processCaptcha(); err != nil {
-							return err
+							return model.NoRetry(err).WithTag(model.ErrProcessCaptcha)
 						}
 						chain.ForwardNext()
 						return nil
@@ -588,15 +608,15 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 				}
 				code, err := api.TwoFA("GYNAUNIB6JCVBQT3SSZ62FR2AI4HODYO")
 				if err != nil {
-					return err
+					return model.NoRetry(err).WithTag(model.ErrTwoFA)
 				}
 				err = processDigitCode(code)
 				if err != nil {
-					return err
+					return model.NoRetry(err).WithTag(model.ErrBrowserInput2FACode)
 				}
 				err = processClick2FANextButton()
 				if err != nil {
-					return err
+					return model.NoRetry(err).WithTag(model.ErrBrowserClick2FANext)
 				}
 				if err := page.Chains().
 					//verify captcha
@@ -606,7 +626,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							return err
 						}
 						if err := processCaptcha(); err != nil {
-							return err
+							return model.NoRetry(err).WithTag(model.ErrProcessCaptcha)
 						}
 						chain.ForwardNext()
 						return nil
@@ -629,7 +649,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 					return err
 				}
 				if err := processCaptcha(); err != nil {
-					return err
+					return model.NoRetry(err).WithTag(model.ErrProcessCaptcha)
 				}
 
 				chain.ForwardPrevN(1, 2)
@@ -637,7 +657,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 
 			}).
 			XPath("//span[text()='Maximum number of attempts reached. Try again later.']", func(chain *browser.Chain) error {
-				return errors.New("account maximum number of attempts reached")
+				return model.NoRetry(nil).WithTag(model.ErrAccountMaximium)
 			}).
 			WaitAny(); err != nil {
 			return err
@@ -645,28 +665,51 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return nil
 	}
 	if err := processLoginButton(); err != nil {
-		return fmt.Errorf("process login button failed,%w", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserClickLoginButton)
 	}
 	if err := processSelectLoginEmail(); err != nil {
-		return fmt.Errorf("process select login email button failed,%w", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserClickEmailButton)
 	}
 	if err := processSwitchLoginEmail(); err != nil {
-		return fmt.Errorf("process switch login email button failed,%w", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserSwitchEmailButton)
 	}
 	if err := processInputUser("jasonfwg0xo"); err != nil {
-		return fmt.Errorf("process input user[%s] failed,%w", "", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserInputUser)
 	}
 	if err := processInputPassword("Aa112233@@"); err != nil {
-		return fmt.Errorf("process input password[%s] failed,%w", "", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserInputPwd)
 	}
 	if err := processClickLoginButton(); err != nil {
-		return fmt.Errorf("process click login button failed,%w", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserLogin)
 	}
 	if err := processVerify(); err != nil {
-		return fmt.Errorf("process verify failed,%w", err)
+		return model.NoRetry(err).WithTag(model.ErrBrowserProcessVerify)
 	}
-
-	return nil
+	r, err := page.RodPage().Eval(`()=>document.querySelector("#__UNIVERSAL_DATA_FOR_REHYDRATION__").innerHTML`)
+	if err != nil {
+		return model.NoRetry(err).WithTag(model.ErrBrowserUserDataNotFound)
+	}
+	var data = gjson.Parse(r.Value.JSON("", ""))
+	var user = data.Get("__DEFAULT_SCOPE__.webapp.app-context.user")
+	if !user.Exists() {
+		return model.NoRetry(nil).WithTag(model.ErrBrowserUserDataNotFound)
+	}
+	var avatar = user.Get("avatarUri.0")
+	if err := loginHook.Wait(common.DefaultBrowserHookLoginTimeout); err != nil {
+		return model.NoRetry(err).WithTag(model.ErrBrowserHookUserInfoTimeout)
+	}
+	var info map[string]string
+	var headers = map[string]string{}
+	var cookies, _ = _browser.Meta.AsString("cookies")
+	_browser.Meta.AsObject("queries", &info)
+	_browser.Meta.AsObject("headers", &headers)
+	return apiDeviceSync(map[string]any{
+		"name":   "",
+		"info":   info,
+		"avatar": avatar,
+		"header": headers,
+		"cookie": cookies,
+	})
 }
 
 func Register(server *cron.Server) error {

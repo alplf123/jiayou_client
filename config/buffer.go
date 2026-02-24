@@ -35,7 +35,7 @@ func (b *BufferedFileInfo) ModTime() time.Time {
 
 // Mode implements fs.FileInfo.
 func (b *BufferedFileInfo) Mode() fs.FileMode {
-	return 0777
+	return fs.ModePerm
 }
 
 // Name implements fs.FileInfo.
@@ -104,13 +104,7 @@ func (b *BufferedFile) Sync() error {
 
 // Truncate implements afero.File.
 func (b *BufferedFile) Truncate(size int64) error {
-	var n int
-	if size > int64(b.info.buffer.Len()) {
-		n = b.info.buffer.Len()
-	} else {
-		n = int(size)
-	}
-	b.info.buffer.Truncate(n)
+	b.info.buffer.Truncate(int(size))
 	return nil
 }
 

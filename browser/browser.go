@@ -97,14 +97,15 @@ func (app *App) LoadBrowser() error {
 				return fmt.Errorf("browser cursor id or name is empty")
 			}
 			app.browsers.Push(&Browser{
-				ID:       cursor.Current().Id(),
-				Name:     cursor.Current().Name(),
-				Meta:     option.New(nil),
-				CreateAt: time.Now(),
-				app:      app,
-				hookMap:  hook.NewHooks(),
-				browser:  cursor.Current(),
-				ctx:      app.ctx,
+				app:          app,
+				hookMap:      hook.NewHooks(),
+				browser:      cursor.Current(),
+				ctx:          app.ctx,
+				interceptors: make(map[string]proto.NetworkResourceType),
+				ID:           cursor.Current().Id(),
+				Name:         cursor.Current().Name(),
+				Meta:         option.New(nil),
+				CreateAt:     time.Now(),
 			})
 		} else {
 			if cursor.Err() != nil {
