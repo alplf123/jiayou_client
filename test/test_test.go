@@ -142,3 +142,6 @@ func TestSyncOutlookToken(t *testing.T) {
 	body.Set("scope", "https://outlook.office.com/IMAP.AccessAsUser.All offline_access")
 	fmt.Println(api.SyncOutlookToken(body))
 }
+
+func TestXray(t *testing.T) {
+}

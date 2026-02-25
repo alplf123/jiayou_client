@@ -304,6 +304,7 @@ type WebAddCommentTaskResult struct {
 	ReplyText string `json:"reply_text"`
 }
 type WebUpdateAvatar struct {
-	Avatar string `json:"avatar"`
-	Proxy  string `json:"proxy"`
+	Avatar     string `json:"avatar"`
+	ProxyName  string `json:"proxy_name"`
+	ProxyValue string `json:"proxy_value"`
 }

@@ -61,6 +61,7 @@ type Options struct {
 	Env            Env             `json:"env" validate:"oneof=prod dev" default:"dev"`
 	Verbose        bool            `json:"verbose" default:"true"`
 	Domain         string          `json:"domain" validate:"required"`
+	Device         string          `json:"device"`
 	Server         string          `json:"server" validate:"required,hostname_port" default:"localhost:9876"`
 	TaskConcurrent int             `json:"task_concurrent" validate:"gte=0"`
 	Stack          int             `json:"stack" validate:"gte=0"`

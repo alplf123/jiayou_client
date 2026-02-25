@@ -10,7 +10,6 @@ import (
 	"jiayou_backend_spider/service/model"
 	"jiayou_backend_spider/service/xray"
 	"jiayou_backend_spider/utils"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -30,8 +29,6 @@ func ShouldRetry(err error) bool {
 
 var DelayFunc = utils.DefaultBackoffDuration(time.Second, time.Second*15)
 
-var pLocker sync.Mutex
-
 func OnInit(app *engine.Engine) error {
 	for _, opt := range app.Options().Cron.DistributeTasks {
 		opt.ServerOptions.ShouldRetry = ShouldRetry
@@ -43,34 +40,21 @@ func OnInit(app *engine.Engine) error {
 	return nil
 }
 func OnLoad(app *engine.Engine) error {
-
-	fmt.Println(tiktok.DyDeviceSync(nil, nil))
-	distribute, err := app.Distribute()
-	if err != nil {
-		return err
-	}
-	logger, err := app.Log()
-	if err != nil {
-		return err
-	}
+	distribute, _ := app.Distribute()
+	logger, _ := app.Log()
 	if distribute.First() != nil {
 		var server = distribute.First().Server()
 		server.BeforeTask(func(ctx context.Context, task *cron.Task) error {
-			pLocker.Lock()
-			defer pLocker.Unlock()
-			if common.XrayProcess == nil {
-				if err := xray.StartXray(); err != nil {
-					logger.Error("xray start failed", zap.Error(err))
-					return model.NewBase().WithTag(model.ErrXray).WithError(err)
-				}
-				logger.Info("xray loaded", zap.String("xray", common.DefaultXrayPath))
-				logger.Info("xray config loaded", zap.String("xray", common.DefaultXrayConfig))
+			if err := xray.Xray.Start(); err != nil {
+				logger.Error("xray start failed", zap.Error(err))
+				return model.NoRetry(err).WithTag(model.ErrXray)
 			}
+			logger.Info("xray loaded", zap.String("xray", common.DefaultXrayPath))
+			logger.Info("xray config loaded", zap.String("xray", common.DefaultXrayConfigPath))
 			var taskArg model.TaskArg
 			if err := task.Payload().As(&taskArg); err == nil {
-				_, ok := common.DefaultXrayConfigMap.Load(taskArg.ProxyName)
-				if !ok {
-					return model.NewBase().WithTag(model.ErrProxyNotBound)
+				if _, err := xray.Xray.Get(taskArg.ProxyName, taskArg.ProxyValue); err != nil {
+					return err
 				}
 			}
 			return nil

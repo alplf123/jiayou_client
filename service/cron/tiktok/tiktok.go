@@ -13,6 +13,7 @@ import (
 	"jiayou_backend_spider/request"
 	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/model"
+	"jiayou_backend_spider/service/xray"
 	"jiayou_backend_spider/utils"
 	"math/rand/v2"
 	url2 "net/url"
@@ -54,14 +55,14 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = common.DefaultXrayConfigMap.Load(params.ProxyName)
+	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
 	lineComment, err := common.GetCommentLine(params.File)
 	if err != nil {
 		return model.NoRetry(err).WithTag(model.ErrComment)
 	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = p.(string)
+	reqOptions.Proxy = p
 	msTokenUrl, err := utils.RunJsCtx(
 		context.Background(),
 		webmssdk,
@@ -106,10 +107,10 @@ func DyVideoPublish(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = common.DefaultXrayConfigMap.Load(params.ProxyName)
+	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = p.(string)
+	reqOptions.Proxy = p
 	reqOptions.Timeout = time.Hour
 	reqOptions.ReadTimeout = time.Hour
 	reqOptions.WriteTimeout = time.Hour
@@ -125,7 +126,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = common.DefaultXrayConfigMap.Load(params.ProxyName)
+	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
 	var url, err = url2.Parse(params.Url)
 	if err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
@@ -145,7 +146,7 @@ func DyVideoComment(ctx context.Context, task *cron.Task) error {
 	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = p.(string)
+	reqOptions.Proxy = p
 	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.Query()
 	_url, err = utils.RunJsCtx(
 		context.Background(),
@@ -199,10 +200,10 @@ func DyVideoDiggLike(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = common.DefaultXrayConfigMap.Load(params.ProxyName)
+	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = p.(string)
+	reqOptions.Proxy = p
 	msTokenUrl, err := utils.RunJsCtx(
 		context.Background(),
 		webmssdk,
@@ -244,8 +245,9 @@ func DyUpdateAvatar(ctx context.Context, task *cron.Task) error {
 		return model.NoRetry(errors.New("bad avatar url"))
 	}
 	var options = request.DefaultRequestOptions()
+	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
 	options.Header.SetUserAgent(gcommon.DefaultUserAgent)
-	options.Proxy = common.DefaultProxy
+	options.Proxy = p
 	var resp, err = request.Get(params.Avatar, options)
 	if err != nil {
 		return err
@@ -268,11 +270,11 @@ func DyExpiredDevice(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = common.DefaultXrayConfigMap.Load(params.ProxyName)
+	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
 	var sidGuard = params.ReqHeaders().Cookie("sid_guard")
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = p.(string)
+	reqOptions.Proxy = p
 	reqOptions.Header.SetCookie("sid_guard", sidGuard)
 	var _url = "https://webcast.us.tiktok.com/webcast/room/create_info/?" + params.Query()
 	_url += "&X-Gnarly=" + Encrypt(_url, "", reqOptions.Header.UserAgent())
