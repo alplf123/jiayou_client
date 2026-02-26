@@ -69,9 +69,9 @@ const (
 type TaskType int
 
 const (
-	VideoComment TaskType = iota
-	VideoPublish
-	VideoAddComment
+	VideoPublish TaskType = iota + 1
+	VideoComment
+	VideoDiggLike = 3
 )
 
 type DateTime time.Time
@@ -275,18 +275,15 @@ type WebPublicVideoTaskArg struct {
 }
 type WebAddCommentTaskArg struct {
 	TiktokWebTaskArg
-	VideoId   string `json:"video_id"`
+	Url       string `json:"url"`
 	File      string `json:"file"`
 	Level     int    `json:"level"`
 	ReplyUser string `json:"reply_user"`
-	ReplyId   string `json:"reply_id"`
 }
 type WebDiggLikeTaskArg struct {
 	TiktokWebTaskArg
-	VideoUrl  string `json:"video_url"`
-	VideoId   string `json:"video_id"`
+	Url       string `json:"video_url"`
 	ReplyUser string `json:"reply_user"`
-	ReplyId   string `json:"reply_id"`
 }
 type WebCommentTaskArg struct {
 	TiktokWebTaskArg

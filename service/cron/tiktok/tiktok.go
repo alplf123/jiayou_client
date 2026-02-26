@@ -25,14 +25,32 @@ import (
 )
 
 const (
-	PatternAddVideoComment = "pattern_add_video_comment"
+	PatternVideoComment    = "pattern_add_video_comment"
 	PatternVideoPublish    = "pattern_video_publish"
-	PatternVideoComment    = "pattern_video_comment"
 	PatternVideoDetail     = "pattern_video_detail"
 	PatternVideoDiggLike   = "pattern_digg_like"
 	PatternUpdateAvatar    = "pattern_update_avatar"
 	PatternDeviceSync      = "pattern_device_sync"
+	PatternDeviceHeartbeat = "pattern_device_heartbeat"
 )
+
+func fetchToken(query string, reqOpts *request.Options) (string, error) {
+	msTokenUrl, err := utils.RunJsCtx(
+		context.Background(),
+		webmssdk,
+		"encrypt",
+		"https://www.tiktok.com/api/explore/item_list/?"+query,
+		reqOpts.Header.UserAgent(),
+	)
+	if err != nil {
+		return "", model.NoRetry(err).WithTag(model.ErrRunJs)
+	}
+	msToken, err := WebMsToken(msTokenUrl, reqOpts)
+	if err != nil {
+		return "", err
+	}
+	return msToken, nil
+}
 
 func apiDeviceSync(info map[string]any) error {
 	resp, err := request.PostJson(gcommon.DefaultDomain+"/tiktok/devices/sync", info, request.DefaultRequestOptions())
@@ -49,6 +67,60 @@ func apiDeviceSync(info map[string]any) error {
 	}
 	return nil
 }
+func fetchCommentReplyUserId(url string, reply string, level int, params model.TiktokWebTaskArg, reqOptions *request.Options) (string, error) {
+	videoId, err := fetchVideoId(url)
+	if err != nil {
+		return "", err
+	}
+	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.Query()
+	_url, err = utils.RunJsCtx(
+		context.Background(),
+		webmssdk,
+		"encrypt",
+		"https://www.tiktok.com/api/comment/list/?"+_url,
+		reqOptions.Header.UserAgent(),
+	)
+	if err != nil {
+		return "", model.NoRetry(err).WithTag(model.ErrRunJs)
+	}
+	msToken, err := fetchToken(params.Query(), reqOptions)
+	if err != nil {
+		return "", err
+	}
+	reqOptions.Header.SetCookieText(msToken)
+	comments, err := WebVideoComment(
+		_url,
+		reqOptions,
+	)
+	if err != nil {
+		return "", err
+	}
+	if level == 1 {
+		for _, comment := range comments {
+			if comment.Nickname == reply {
+				return comment.CId, nil
+			}
+		}
+	}
+	return "", model.NoRetry(nil).WithTag(model.ErrTaskCommentUserNotFound)
+
+}
+
+func fetchVideoId(_url string) (string, error) {
+	var url, err = url2.Parse(_url)
+	if err != nil {
+		return "", model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
+	}
+	var lastFlagPos = strings.LastIndex(url.Path, "/")
+	if lastFlagPos <= 0 {
+		return "", model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
+	}
+	var videoId = url.Path[lastFlagPos+1:]
+	if !strings.HasPrefix(videoId, "7") {
+		return "", model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
+	}
+	return videoId, nil
+}
 
 func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	var params model.WebAddCommentTaskArg
@@ -60,29 +132,27 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	if err != nil {
 		return model.NoRetry(err).WithTag(model.ErrComment)
 	}
+	videoId, err := fetchVideoId(params.Url)
+	if err != nil {
+		return err
+	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
 	reqOptions.Proxy = p
-	msTokenUrl, err := utils.RunJsCtx(
-		context.Background(),
-		webmssdk,
-		"encrypt",
-		"https://www.tiktok.com/api/explore/item_list/?"+params.Query(),
-		reqOptions.Header.UserAgent(),
-	)
-	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrRunJs)
-	}
-	msToken, err := WebMsToken(msTokenUrl, reqOptions)
+	msToken, err := fetchToken(params.Query(), reqOptions)
 	if err != nil {
 		return err
 	}
 	reqOptions.Header.SetCookieText(msToken)
+	replyUserId, err := fetchCommentReplyUserId(params.Url, params.ReplyUser, params.Level, params.TiktokWebTaskArg, reqOptions)
+	if err != nil {
+		return err
+	}
 	var _url string
 	if params.Level == 0 {
-		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + url2.QueryEscape(lineComment) + "&text_extra=[]&" + params.TiktokWebTaskArg.Query()
+		_url = "aid=1988&aweme_id=" + videoId + "&text=" + url2.QueryEscape(lineComment) + "&text_extra=[]&" + params.TiktokWebTaskArg.Query()
 	} else if params.Level == 1 {
-		_url = "aid=1988&aweme_id=" + params.VideoId + "&text=" + url2.QueryEscape(lineComment) + "&text_extra=[]&reply_id=" + params.ReplyId + "&reply_to_reply_id=0&" + params.TiktokWebTaskArg.Query()
+		_url = "aid=1988&aweme_id=" + videoId + "&text=" + url2.QueryEscape(lineComment) + "&text_extra=[]&reply_id=" + replyUserId + "&reply_to_reply_id=0&" + params.TiktokWebTaskArg.Query()
 	} else {
 		return model.NoRetry(nil).WithTag(model.ErrTaskCommentLevelUnSupported)
 	}
@@ -100,7 +170,7 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	if err != nil {
 		return nil
 	}
-	return task.Write(model.WebAddCommentTaskResult{VideoId: params.VideoId, ReplyText: lineComment})
+	return task.Write(model.WebAddCommentTaskResult{VideoId: videoId, ReplyText: lineComment})
 }
 func DyVideoPublish(ctx context.Context, task *cron.Task) error {
 	var params model.WebPublicVideoTaskArg
@@ -121,77 +191,6 @@ func DyVideoPublish(ctx context.Context, task *cron.Task) error {
 		VisibilityType: VisibilityType(params.VisibilityType),
 	}, reqOptions)
 }
-func DyVideoComment(ctx context.Context, task *cron.Task) error {
-	var params model.WebCommentTaskArg
-	if err := task.Payload().As(&params); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
-	}
-	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
-	var url, err = url2.Parse(params.Url)
-	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
-	}
-	var lastFlagPos = strings.LastIndex(url.Path, "/")
-	if lastFlagPos <= 0 {
-		return model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
-	}
-	var videoId = url.Path[lastFlagPos+1:]
-	if !strings.HasPrefix(videoId, "7") {
-		return model.NoRetry(err).WithTag(model.ErrTaskBadVideoUrl)
-	}
-	var result model.WebCommentTaskArgResult
-	result.VideoId = videoId
-	if params.Level == 0 {
-		return task.Write(result)
-	}
-	var reqOptions = request.DefaultRequestOptions()
-	reqOptions.Header = params.ReqHeaders()
-	reqOptions.Proxy = p
-	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.Query()
-	_url, err = utils.RunJsCtx(
-		context.Background(),
-		webmssdk,
-		"encrypt",
-		"https://www.tiktok.com/api/comment/list/?"+_url,
-		reqOptions.Header.UserAgent(),
-	)
-	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrRunJs)
-	}
-	msTokenUrl, err := utils.RunJsCtx(
-		context.Background(),
-		webmssdk,
-		"encrypt",
-		"https://www.tiktok.com/api/explore/item_list/?"+params.Query(),
-		reqOptions.Header.UserAgent(),
-	)
-	if err != nil {
-		return model.NewBase().WithTag(model.ErrRunJs)
-	}
-	msToken, err := WebMsToken(msTokenUrl, reqOptions)
-	if err != nil {
-		return err
-	}
-	reqOptions.Header.SetCookieText(msToken)
-	comments, err := WebVideoComment(
-		_url,
-		reqOptions,
-	)
-	if err != nil {
-		return err
-	}
-	if params.Level == 1 {
-		for _, comment := range comments {
-			if comment.Nickname == params.ReplyUser {
-				result.ReplyUser = comment.Nickname
-				result.ReplyId = comment.CId
-				return task.Write(result)
-			}
-		}
-	}
-	return model.NoRetry(nil).WithTag(model.ErrTaskCommentUserNotFound)
-
-}
 func DyVideoDetail(ctx context.Context, task *cron.Task) error {
 	return nil
 }
@@ -201,25 +200,23 @@ func DyVideoDiggLike(ctx context.Context, task *cron.Task) error {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
 	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	videoId, err := fetchVideoId(params.Url)
+	if err != nil {
+		return err
+	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
 	reqOptions.Proxy = p
-	msTokenUrl, err := utils.RunJsCtx(
-		context.Background(),
-		webmssdk,
-		"encrypt",
-		"https://www.tiktok.com/api/explore/item_list/?"+params.Query(),
-		reqOptions.Header.UserAgent(),
-	)
-	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrRunJs)
-	}
-	msToken, err := WebMsToken(msTokenUrl, reqOptions)
+	msToken, err := fetchToken(params.Query(), reqOptions)
 	if err != nil {
 		return err
 	}
 	reqOptions.Header.SetCookieText(msToken)
-	var _url = "aid=1988&aweme_id=" + params.VideoId + "&cid=" + params.ReplyId + "&digg_type=1&" + params.Query()
+	replyUserId, err := fetchCommentReplyUserId(params.Url, params.ReplyUser, 1, params.TiktokWebTaskArg, reqOptions)
+	if err != nil {
+		return err
+	}
+	var _url = "aid=1988&aweme_id=" + videoId + "&cid=" + replyUserId + "&digg_type=1&" + params.Query()
 	_url, err = utils.RunJsCtx(
 		context.Background(),
 		webmssdk,
@@ -265,7 +262,7 @@ func DyUpdateAvatar(ctx context.Context, task *cron.Task) error {
 	}
 	return nil
 }
-func DyExpiredDevice(ctx context.Context, task *cron.Task) error {
+func DyDeviceHeartbeat(ctx context.Context, task *cron.Task) error {
 	var params model.TiktokWebTaskArg
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
@@ -715,12 +712,12 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 }
 
 func Register(server *cron.Server) error {
-	server.HandleFunc(PatternAddVideoComment, DyAddVideoComment)
+	server.HandleFunc(PatternVideoComment, DyAddVideoComment)
 	server.HandleFunc(PatternVideoPublish, DyVideoPublish)
-	server.HandleFunc(PatternVideoComment, DyVideoComment)
 	server.HandleFunc(PatternVideoDetail, DyVideoDetail)
 	server.HandleFunc(PatternUpdateAvatar, DyUpdateAvatar)
 	server.HandleFunc(PatternVideoDiggLike, DyVideoDiggLike)
 	server.HandleFunc(PatternDeviceSync, DyDeviceSync)
+	server.HandleFunc(PatternDeviceHeartbeat, DyDeviceHeartbeat)
 	return nil
 }
