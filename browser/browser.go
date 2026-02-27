@@ -76,9 +76,8 @@ func (app *App) release(browser *Browser, reset bool) {
 		delete(app.waits, browser)
 		if reset || browser.removed {
 			browser.reset()
-		} else {
-			app.browsers.Push(browser)
 		}
+		app.browsers.Push(browser)
 	}
 }
 func (app *App) LoadBrowser() error {
@@ -272,6 +271,9 @@ type ChainErr struct {
 
 func (chainErr *ChainErr) Error() string {
 	return fmt.Sprintf("%s('%s'),%s", chainErr.Type, chainErr.Expr, chainErr.error)
+}
+func (chainErr *ChainErr) Unwrap() error {
+	return chainErr.error
 }
 
 type ChainFunc func(*Chain)
@@ -721,10 +723,11 @@ func (bitPage *Page) WaitLoad() error {
 func (bitPage *Page) Close() error {
 	return bitPage.page.Close()
 }
-func (bitPage *Page) Timeout(timeout time.Duration) {
+func (bitPage *Page) Timeout(timeout time.Duration) *Page {
 	if timeout > 0 {
 		bitPage.page = bitPage.page.Timeout(timeout)
 	}
+	return bitPage
 }
 func (bitPage *Page) RodPage() *rod.Page {
 	return bitPage.page
@@ -800,7 +803,6 @@ func (browser *Browser) reset() {
 		if browser.browser != nil {
 			browser.browser.Kill()
 		}
-		browser.browser = nil
 		browser.rod = nil
 	}
 }
@@ -834,6 +836,7 @@ func (browser *Browser) Ready() bool {
 	defer browser.lck.Unlock()
 	return browser.rod != nil
 }
+
 func (browser *Browser) Pid() int {
 	if browser.browser != nil {
 		return browser.browser.Pid()

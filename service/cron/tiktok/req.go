@@ -15,11 +15,11 @@ func onRequest(hijack *rod.Hijack, ctx *browser.Ctx) {
 	hijack.ContinueRequest(&proto.FetchContinueRequest{})
 	var target = hijack.Request.URL().String()
 	if strings.Contains(target, "/passport/web/account/info") {
-		var cookies = hijack.Request.Header("cookie")
+		var cookies = hijack.Request.Header("Cookie")
 		var query = hijack.Request.URL().Query()
 		var queries = map[string]string{}
 		var headers = map[string]string{
-			"user-agent": hijack.Request.Header("user-agent"),
+			"user-agent": hijack.Request.Header("User-Agent"),
 		}
 		for k, v := range query {
 			unescape, _ := url.QueryUnescape(v[0])

@@ -153,8 +153,7 @@ func (xray *Service) addInbound(tag string) error {
 				},
 			}),
 	}
-	r, err := xray.hsClient.AddInbound(context.Background(), &handlerService.AddInboundRequest{Inbound: httpInBoundConf})
-	fmt.Println(r, err)
+	_, err := xray.hsClient.AddInbound(context.Background(), &handlerService.AddInboundRequest{Inbound: httpInBoundConf})
 	return err
 }
 func (xray *Service) removeOutbound(tag string) error {
@@ -162,15 +161,14 @@ func (xray *Service) removeOutbound(tag string) error {
 	return err
 }
 func (xray *Service) addOutbound(tag string, vless *url.URL) error {
-	r, err := xray.hsClient.AddOutbound(
+	_, err := xray.hsClient.AddOutbound(
 		context.Background(),
 		&handlerService.AddOutboundRequest{Outbound: xray.vlessOutBoundConfig(tag, vless)},
 	)
-	fmt.Println(r, err)
 	return err
 }
 func (xray *Service) addRule(ruleTag, inTag, outTag string) error {
-	r, err := xray.rsClient.AddRule(context.Background(),
+	_, err := xray.rsClient.AddRule(context.Background(),
 		&routingService.AddRuleRequest{
 			Config: serial.ToTypedMessage(&router.Config{
 				DomainStrategy: router.Config_AsIs,
@@ -183,7 +181,6 @@ func (xray *Service) addRule(ruleTag, inTag, outTag string) error {
 				}}),
 			ShouldAppend: false,
 		})
-	fmt.Println(r, err)
 	return err
 }
 func (xray *Service) Get(tag string, outbound string) (string, error) {
@@ -220,7 +217,7 @@ func (xray *Service) Get(tag string, outbound string) (string, error) {
 		}
 		return "", model.NoRetry(err).WithTag(model.ErrXrayRule)
 	}
-	xray.c[tag] = fmt.Sprintf("http://%s:%d", xray.inBoundHost, xray.inBoundPort)
+	xray.c[tag] = fmt.Sprintf("http://%s:%s@%s:%d", xray.user, xray.pwd, xray.inBoundHost, xray.inBoundPort)
 	xray.inBoundPort++
 	return xray.c[tag], nil
 
@@ -268,9 +265,13 @@ func OnLoad(app *engine.Engine) error {
 			return err
 		}
 	}
-	common.GLogger.Info("xray loaded", zap.String("xray", xrayPath))
 	common.DefaultXrayPath, Xray.Path = xrayPath, xrayPath
 	Xray.Config = filepath.Join(utils.MustGetDefaultHomeDir("xray"), common.DefaultXrayConfigPath)
+	if err := Xray.Start(); err != nil {
+		return fmt.Errorf("xray start failed,%w", err)
+	}
+	common.GLogger.Info("xray loaded", zap.String("xray", common.DefaultXrayPath))
+	common.GLogger.Info("xray config loaded", zap.String("xray", common.DefaultXrayConfigPath))
 	return nil
 }
 

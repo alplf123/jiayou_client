@@ -45,12 +45,6 @@ func OnLoad(app *engine.Engine) error {
 	if distribute.First() != nil {
 		var server = distribute.First().Server()
 		server.BeforeTask(func(ctx context.Context, task *cron.Task) error {
-			if err := xray.Xray.Start(); err != nil {
-				logger.Error("xray start failed", zap.Error(err))
-				return model.NoRetry(err).WithTag(model.ErrXray)
-			}
-			logger.Info("xray loaded", zap.String("xray", common.DefaultXrayPath))
-			logger.Info("xray config loaded", zap.String("xray", common.DefaultXrayConfigPath))
 			var taskArg model.TaskArg
 			if err := task.Payload().As(&taskArg); err == nil {
 				if _, err := xray.Xray.Get(taskArg.ProxyName, taskArg.ProxyValue); err != nil {
@@ -66,6 +60,7 @@ func OnLoad(app *engine.Engine) error {
 			logger.Error("server start failed", zap.Error(err))
 			return err
 		}
+
 	}
 	return nil
 }

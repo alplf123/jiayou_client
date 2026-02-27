@@ -88,7 +88,7 @@ func ReadEmailFromImap(user, accessToken string, server, from string, startAt ti
 	}
 	var titles []string
 	for msg := range messages {
-		fmt.Println(msg.Envelope.Date, startAt, msg.Envelope.Subject)
+		//fmt.Println(msg.Envelope.Date, startAt, msg.Envelope.Subject)
 		if msg.Envelope.Date.After(startAt) {
 			titles = append(titles, msg.Envelope.Subject)
 		}

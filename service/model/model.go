@@ -36,11 +36,17 @@ const (
 	Pc     Platform = "pc"
 )
 
-type VerifyType string
+type DeviceVerifyType string
 
 const (
-	Email VerifyType = "email"
-	TwoFA VerifyType = "2fa"
+	TwoFA DeviceVerifyType = "2fa"
+	Email DeviceVerifyType = "email"
+)
+
+type EmailType string
+
+const (
+	OutLook EmailType = "outlook"
 )
 
 type Os string
@@ -221,16 +227,16 @@ type SystemSetting struct {
 }
 
 type TaskArg struct {
-	UniqueId      string     `json:"unique_id"`
-	BindName      string     `json:"bind_name"`
-	Headers       string     `json:"headers"`
-	Cookie        string     `json:"cookie"`
-	Info          string     `json:"info"`
-	ProxyName     string     `json:"proxy_name"`
-	ProxyValue    string     `json:"proxy_value"`
-	VerifyType    VerifyType `json:"verify_type"`
-	VerifyToken   string     `json:"verify_token"`
-	VerifyAddress string     `json:"verify_address"`
+	UniqueId   string           `json:"unique_id"`
+	BindName   string           `json:"bind_name"`
+	BindPwd    string           `json:"bind_pwd"`
+	Headers    string           `json:"headers"`
+	Cookie     string           `json:"cookie"`
+	Info       string           `json:"info"`
+	ProxyName  string           `json:"proxy_name"`
+	ProxyValue string           `json:"proxy_value"`
+	VerifyType DeviceVerifyType `json:"verify_type"`
+	VerifyArgs string           `json:"verify_args"`
 }
 
 func (arg *TaskArg) Query() map[string]string {
@@ -304,4 +310,17 @@ type WebUpdateAvatar struct {
 	Avatar     string `json:"avatar"`
 	ProxyName  string `json:"proxy_name"`
 	ProxyValue string `json:"proxy_value"`
+}
+
+type BindEmailArgsOutlookOauth struct {
+	DeviceId    string `json:"outlook_device_id" binding:"required"`
+	AccessToken string `json:"access_token" binding:"required"`
+}
+type BindDeviceVerifyEmail struct {
+	Type  EmailType `json:"type" binding:"oneof=outlook"`
+	Email string    `json:"email" binding:"required"`
+	Args  any       `json:"args" binding:"required"`
+}
+type BindDeviceVerify2FA struct {
+	Secret string `json:"secret" binding:"required"`
 }

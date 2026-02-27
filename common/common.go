@@ -21,7 +21,6 @@ const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 const DefaultExpiredToken = 24 * 30 * 3600
 const DefaultCaptchaExpired = 5 * time.Minute
 
-var DefaultDomain = "http://zlku49474541.vicp.fun"
 var DefaultJwtKey = []byte("FiAVkmPYIgFY1osjyKRufkxkHgtCS1Ff")
 
 const DefaultKeyIssuer = "jiayou"
@@ -32,9 +31,6 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func ApiImagePath(file string) string {
-	return DefaultDomain + "/api/static/images/" + file
-}
 func GenerateToken(userID uint, userName string) (string, error) {
 	expirationTime := time.Now().Add(DefaultExpiredToken * time.Second)
 	claims := &Claims{

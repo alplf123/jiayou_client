@@ -67,6 +67,7 @@ func (browser *Browser) Cleanup() {
 }
 func (browser *Browser) Kill() {
 	browser.kill(browser.pid)
+	browser.pid = -1
 }
 func (browser *Browser) Open() (string, error) {
 	alive, pid, err := WindowAlive(browser.bit.debugHost()+ApiWindowAlive, browser.id, request.DefaultRequestOptions())

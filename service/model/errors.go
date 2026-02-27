@@ -62,7 +62,9 @@ var ErrBrowserUpdateProxy = "指纹浏览器更新代理失败"
 var ErrEmailReadCode = "邮件读取验证码失败"
 var ErrProcessCaptcha = "验证码处理失败"
 var ErrAccountMaximium = "账号登录次数过多"
+var ErrAccountNotExist = "账号不存在"
 var ErrTwoFA = "2fa计算失败"
+var ErrWaitTimeout = "等待超时"
 
 type ErrBase struct {
 	tag    string

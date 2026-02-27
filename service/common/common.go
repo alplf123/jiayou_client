@@ -21,15 +21,16 @@ var DefaultLogger *zap.Logger
 
 const DefaultBrowserTryPeekTimeout = 60 * time.Second
 const DefaultBrowserHookLoginTimeout = 30 * time.Second
-const DefaultBrowserPageTimeout = 30 * time.Second
-
+const DefaultBrowserPageTimeout = 5 * time.Minute
 const DefaultProxy = "http://127.0.0.1:9878"
+
+var DefaultDomain = "http://0.0.0.0:9876"
 
 var DefaultFFmpegPath = "ffmpeg.exe"
 var DefaultXrayPath = "xray.exe"
 var DefaultXrayConfigPath = "xray.json"
 
-var GlobalDevice string
+var GlobalDevice string = "default"
 var GLogger *zap.Logger
 var GBrowser *browser.App
 var GBitBrowserOptions *bit.Options
@@ -72,6 +73,9 @@ func OnLoad(app *engine.Engine) error {
 	GBitBrowserOptions = app.Options().Browser.BitOptions
 	if app.Options().Device != "" {
 		GlobalDevice = app.Options().Device
+	}
+	if app.Options().Domain != "" {
+		DefaultDomain = app.Options().Domain
 	}
 	return nil
 }

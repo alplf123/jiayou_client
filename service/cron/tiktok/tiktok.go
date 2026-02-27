@@ -2,6 +2,7 @@ package tiktok
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"jiayou_backend_spider/api"
@@ -53,7 +54,7 @@ func fetchToken(query string, reqOpts *request.Options) (string, error) {
 }
 
 func apiDeviceSync(info map[string]any) error {
-	resp, err := request.PostJson(gcommon.DefaultDomain+"/tiktok/devices/sync", info, request.DefaultRequestOptions())
+	resp, err := request.PostJson(common.DefaultDomain+"/api/tiktok/devices/sync", info, request.DefaultRequestOptions())
 	if err != nil {
 		return model.NewNetError().WithError(err)
 	}
@@ -288,10 +289,30 @@ func DyDeviceHeartbeat(ctx context.Context, task *cron.Task) error {
 	return nil
 }
 func DyDeviceSync(ctx context.Context, task *cron.Task) error {
+	var taskArg model.TaskArg
+	if err := task.Payload().As(&taskArg); err != nil {
+		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
+	}
+	var twoFa model.BindDeviceVerify2FA
+	var email model.BindDeviceVerifyEmail
+	var outlook model.BindEmailArgsOutlookOauth
+	switch taskArg.VerifyType {
+	case model.Email:
+		json.Unmarshal([]byte(taskArg.VerifyArgs), &email)
+		if email.Type == model.OutLook {
+			utils.MS(email.Args, &outlook, nil)
+		}
+	case model.TwoFA:
+		json.Unmarshal([]byte(taskArg.VerifyArgs), &twoFa)
+	}
+	var p, _ = xray.Xray.Get(taskArg.ProxyName, taskArg.ProxyValue)
 	_browser := common.GBrowser.Peek(false, common.DefaultBrowserTryPeekTimeout)
 	if _browser == nil {
-		return model.NoRetry(nil).WithTag(model.ErrBrowserPeekTimeout)
+		return model.Retry(nil).WithTag(model.ErrBrowserPeekTimeout)
 	}
+	defer func() {
+		_browser.Reset()
+	}()
 	if err := bit.UpdateProxy(
 		fmt.Sprintf(
 			"http://%s:%d%s",
@@ -300,29 +321,29 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 			bit.ApiUpdateProxy,
 		),
 		[]string{_browser.ID},
-		common.DefaultProxy,
+		p,
 		request.DefaultRequestOptions(),
 	); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserUpdateProxy)
+		return model.Retry(err).WithTag(model.ErrBrowserUpdateProxy)
 	}
 	_browser.AddInterceptor("", "")
 	_browser.OnRequest(onRequest)
 	var loginHook = _browser.Hook(loginHook)
 	if err := _browser.Connect(); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserConnect)
+		return model.Retry(err).WithTag(model.ErrBrowserConnect)
 	}
 	var page, err = _browser.Blank()
 	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserLoadPage)
+		return model.Retry(err).WithTag(model.ErrBrowserLoadPage)
 	}
 	page.Timeout(common.DefaultBrowserPageTimeout)
 	err = page.Load("https://www.tiktok.com")
 	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserLoadUrl)
+		return model.Retry(err).WithTag(model.ErrBrowserLoadUrl)
 	}
 	err = page.WaitLoad()
 	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserWaitLoad)
+		return model.Retry(err).WithTag(model.ErrBrowserWaitLoad)
 	}
 	var processLoginButton = func() error {
 		loginEle, err := page.RodPage().Element("#top-right-action-bar-login-button")
@@ -547,7 +568,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							return err
 						}
 						if err := processCaptcha(); err != nil {
-							return err
+							return model.Retry(nil).WithTag(model.ErrProcessCaptcha).WithError(err)
 						}
 						chain.ForwardNext()
 						return nil
@@ -558,9 +579,9 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							return err
 						}
 						code, err := processReadEmailCode(
-							"WhitneyMoore8231@outlook.com",
-							"dbc8e03a-b00c-46bd-ae65-b683e7707cb0",
-							"M.C557_BAY.0.U.-CnlLK8lbhwjBzvR2sh2*v0anS3*vdlWql5!RKqFPdDLTID5*5iwUGOhqtPGFtugOGUZQr*Cms*0MLDH!eJb8fmHQHMYQwxnpoCPiVhWm3x!0nQF!l4y1zwYbHBgu20UBPUZ21sDpXuLSHVCzuEfKeFSL!CvqULqAs3I*AordlvYQ0nV7ordD2J7LL9UqQkNoCjruphydl90hQ3usM7LYUUGHWcKzs!HuIw6vxqcXI8F8iAKDoln7DRG4AAk8F0kkwxajozUc0hJq9P7OuthFyWnSNy5nxEHdVyXYvrgzrP33okawEVknuJ!ddwDznLTou!23NssL8o69*DvaxRxg*896fQTkRvuNGFR*cVgq5TXXr5KBK9eHa9Dqt3pcVGPZhm11IbXjFZYLiMaN1D27Xuk$",
+							email.Email,
+							outlook.DeviceId,
+							outlook.AccessToken,
 							sendStart,
 						)
 						if err != nil {
@@ -583,7 +604,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							return err
 						}
 						if err := processCaptcha(); err != nil {
-							return model.NoRetry(err).WithTag(model.ErrProcessCaptcha)
+							return model.Retry(nil).WithTag(model.ErrProcessCaptcha).WithError(err)
 						}
 						chain.ForwardNext()
 						return nil
@@ -605,17 +626,17 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 				if err := element.WaitVisible(); err != nil {
 					return err
 				}
-				code, err := api.TwoFA("GYNAUNIB6JCVBQT3SSZ62FR2AI4HODYO")
+				code, err := api.TwoFA(twoFa.Secret)
 				if err != nil {
-					return model.NoRetry(err).WithTag(model.ErrTwoFA)
+					return model.Retry(err).WithTag(model.ErrTwoFA)
 				}
 				err = processDigitCode(code)
 				if err != nil {
-					return model.NoRetry(err).WithTag(model.ErrBrowserInput2FACode)
+					return model.Retry(err).WithTag(model.ErrBrowserInput2FACode)
 				}
 				err = processClick2FANextButton()
 				if err != nil {
-					return model.NoRetry(err).WithTag(model.ErrBrowserClick2FANext)
+					return model.Retry(err).WithTag(model.ErrBrowserClick2FANext)
 				}
 				if err := page.Chains().
 					//verify captcha
@@ -625,7 +646,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							return err
 						}
 						if err := processCaptcha(); err != nil {
-							return model.NoRetry(err).WithTag(model.ErrProcessCaptcha)
+							return model.Retry(err).WithTag(model.ErrProcessCaptcha)
 						}
 						chain.ForwardNext()
 						return nil
@@ -641,6 +662,9 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 				}
 				return nil
 			}).
+			XPath(`//span[text()="Account doesn't exist"]`, func(chain *browser.Chain) error {
+				return model.NoRetry(nil).WithTag(model.ErrAccountNotExist)
+			}).
 			//verify captcha
 			XPath("//span[text()='Drag the slider to fit the puzzle']", func(chain *browser.Chain) error {
 				var element = chain.Elements().First()
@@ -648,10 +672,9 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 					return err
 				}
 				if err := processCaptcha(); err != nil {
-					return model.NoRetry(err).WithTag(model.ErrProcessCaptcha)
+					return model.Retry(nil).WithTag(model.ErrProcessCaptcha).WithError(err)
 				}
-
-				chain.ForwardPrevN(1, 2)
+				chain.ForwardPrevN(1, 2, 3)
 				return nil
 
 			}).
@@ -664,50 +687,54 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return nil
 	}
 	if err := processLoginButton(); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserClickLoginButton)
+		return model.Retry(err).WithTag(model.ErrBrowserClickLoginButton)
 	}
 	if err := processSelectLoginEmail(); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserClickEmailButton)
+		return model.Retry(err).WithTag(model.ErrBrowserClickEmailButton)
 	}
 	if err := processSwitchLoginEmail(); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserSwitchEmailButton)
+		return model.Retry(err).WithTag(model.ErrBrowserSwitchEmailButton)
 	}
-	if err := processInputUser("jasonfwg0xo"); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserInputUser)
+	if err := processInputUser(taskArg.BindName); err != nil {
+		return model.Retry(err).WithTag(model.ErrBrowserInputUser)
 	}
-	if err := processInputPassword("Aa112233@@"); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserInputPwd)
+	if err := processInputPassword(taskArg.BindPwd); err != nil {
+		return model.Retry(err).WithTag(model.ErrBrowserInputPwd)
 	}
 	if err := processClickLoginButton(); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserLogin)
+		return model.Retry(err).WithTag(model.ErrBrowserLogin)
 	}
 	if err := processVerify(); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserProcessVerify)
+		return model.Retry(nil).WithTag(model.ErrBrowserProcessVerify).WithError(err)
 	}
-	r, err := page.RodPage().Eval(`()=>document.querySelector("#__UNIVERSAL_DATA_FOR_REHYDRATION__").innerHTML`)
-	if err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserUserDataNotFound)
-	}
-	var data = gjson.Parse(r.Value.JSON("", ""))
-	var user = data.Get("__DEFAULT_SCOPE__.webapp.app-context.user")
-	if !user.Exists() {
-		return model.NoRetry(nil).WithTag(model.ErrBrowserUserDataNotFound)
-	}
-	var avatar = user.Get("avatarUri.0")
-	if err := loginHook.Wait(common.DefaultBrowserHookLoginTimeout); err != nil {
-		return model.NoRetry(err).WithTag(model.ErrBrowserHookUserInfoTimeout)
+	//r, err := page.RodPage().Eval(`()=>document.querySelector("#__UNIVERSAL_DATA_FOR_REHYDRATION__").innerHTML`)
+	//if err != nil {
+	//	return model.Retry(err).WithTag(model.ErrBrowserUserDataNotFound)
+	//}
+	//var data = gjson.Parse(r.Value.JSON("", ""))
+	//var user = data.Get("__DEFAULT_SCOPE__.webapp.app-context.user")
+	//if !user.Exists() {
+	//	return model.Retry(nil).WithTag(model.ErrBrowserUserDataNotFound)
+	//}
+	//var avatar = user.Get("avatarUri.0")
+	//if err := loginHook.Wait(common.DefaultBrowserHookLoginTimeout); err != nil {
+	//	return model.Retry(err).WithTag(model.ErrBrowserHookUserInfoTimeout)
+	//}
+	if err := loginHook.Wait(time.Second * 15); err != nil {
+		return model.Retry(err).WithTag(model.ErrWaitTimeout)
 	}
 	var info map[string]string
 	var headers = map[string]string{}
 	var cookies, _ = _browser.Meta.AsString("cookies")
 	_browser.Meta.AsObject("queries", &info)
 	_browser.Meta.AsObject("headers", &headers)
+	_info, _ := json.Marshal(info)
+	_headers, _ := json.Marshal(headers)
 	return apiDeviceSync(map[string]any{
-		"name":   "",
-		"info":   info,
-		"avatar": avatar,
-		"header": headers,
-		"cookie": cookies,
+		"name":    taskArg.BindName,
+		"info":    string(_info),
+		"headers": string(_headers),
+		"cookie":  cookies,
 	})
 }
 
