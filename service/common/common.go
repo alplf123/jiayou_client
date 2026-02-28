@@ -2,6 +2,7 @@ package common
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"jiayou_backend_spider/browser"
@@ -10,6 +11,7 @@ import (
 	"jiayou_backend_spider/service/model"
 	"math/rand/v2"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -20,8 +22,9 @@ import (
 var DefaultLogger *zap.Logger
 
 const DefaultBrowserTryPeekTimeout = 60 * time.Second
+const DefaultBrowserStepTimeout = 15 * time.Second
 const DefaultBrowserHookLoginTimeout = 30 * time.Second
-const DefaultBrowserPageTimeout = 5 * time.Minute
+const DefaultBrowserPageTimeout = time.Minute
 const DefaultProxy = "http://127.0.0.1:9878"
 
 var DefaultDomain = "http://0.0.0.0:9876"
@@ -30,11 +33,35 @@ var DefaultFFmpegPath = "ffmpeg.exe"
 var DefaultXrayPath = "xray.exe"
 var DefaultXrayConfigPath = "xray.json"
 
+var DefaultNodePath = "node.exe"
+
 var GlobalDevice string = "default"
 var GLogger *zap.Logger
 var GBrowser *browser.App
 var GBitBrowserOptions *bit.Options
 
+func RunJsCtx(ctx context.Context, js string, call string, args ...string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var _args []string
+	for _, arg := range args {
+		_args = append(_args, "'"+arg+"'")
+	}
+	var cmd = exec.CommandContext(ctx, DefaultNodePath)
+	var stdOut bytes.Buffer
+	cmd.Stdout = &stdOut
+	cmd.Stdin = strings.NewReader(
+		fmt.Sprintf("%s\r\n%s", js,
+			fmt.Sprintf("console.log(%s(%s))", call, strings.Join(_args, ","))))
+	if errors.Is(cmd.Err, exec.ErrDot) {
+		cmd.Err = nil
+	}
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(stdOut.String()), nil
+}
 func GenerateVideoFirstFrame(file string) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	err := ffmpeg.Input(file).

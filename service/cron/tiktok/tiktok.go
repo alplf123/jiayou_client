@@ -36,7 +36,7 @@ const (
 )
 
 func fetchToken(query string, reqOpts *request.Options) (string, error) {
-	msTokenUrl, err := utils.RunJsCtx(
+	msTokenUrl, err := common.RunJsCtx(
 		context.Background(),
 		webmssdk,
 		"encrypt",
@@ -74,7 +74,7 @@ func fetchCommentReplyUserId(url string, reply string, level int, params model.T
 		return "", err
 	}
 	var _url = "aweme_id=" + videoId + "&count=20&cursor=0&aid=1988&" + params.Query()
-	_url, err = utils.RunJsCtx(
+	_url, err = common.RunJsCtx(
 		context.Background(),
 		webmssdk,
 		"encrypt",
@@ -128,7 +128,10 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	var p, err = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	if err != nil {
+		return err
+	}
 	lineComment, err := common.GetCommentLine(params.File)
 	if err != nil {
 		return model.NoRetry(err).WithTag(model.ErrComment)
@@ -157,7 +160,7 @@ func DyAddVideoComment(ctx context.Context, task *cron.Task) error {
 	} else {
 		return model.NoRetry(nil).WithTag(model.ErrTaskCommentLevelUnSupported)
 	}
-	_url, err = utils.RunJsCtx(
+	_url, err = common.RunJsCtx(
 		context.Background(),
 		webmssdk,
 		"encrypt",
@@ -178,7 +181,10 @@ func DyVideoPublish(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	var p, err = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	if err != nil {
+		return err
+	}
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
 	reqOptions.Proxy = p
@@ -200,7 +206,10 @@ func DyVideoDiggLike(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	var p, err = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	if err != nil {
+		return err
+	}
 	videoId, err := fetchVideoId(params.Url)
 	if err != nil {
 		return err
@@ -218,7 +227,7 @@ func DyVideoDiggLike(ctx context.Context, task *cron.Task) error {
 		return err
 	}
 	var _url = "aid=1988&aweme_id=" + videoId + "&cid=" + replyUserId + "&digg_type=1&" + params.Query()
-	_url, err = utils.RunJsCtx(
+	_url, err = common.RunJsCtx(
 		context.Background(),
 		webmssdk,
 		"encrypt",
@@ -243,10 +252,13 @@ func DyUpdateAvatar(ctx context.Context, task *cron.Task) error {
 		return model.NoRetry(errors.New("bad avatar url"))
 	}
 	var options = request.DefaultRequestOptions()
-	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	p, err := xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	if err != nil {
+		return err
+	}
 	options.Header.SetUserAgent(gcommon.DefaultUserAgent)
 	options.Proxy = p
-	var resp, err = request.Get(params.Avatar, options)
+	resp, err := request.Get(params.Avatar, options)
 	if err != nil {
 		return err
 	}
@@ -268,7 +280,10 @@ func DyDeviceHeartbeat(ctx context.Context, task *cron.Task) error {
 	if err := task.Payload().As(&params); err != nil {
 		return model.NoRetry(err).WithTag(model.ErrTaskArgs)
 	}
-	var p, _ = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	var p, err = xray.Xray.Get(params.ProxyName, params.ProxyValue)
+	if err != nil {
+		return err
+	}
 	var sidGuard = params.ReqHeaders().Cookie("sid_guard")
 	var reqOptions = request.DefaultRequestOptions()
 	reqOptions.Header = params.ReqHeaders()
@@ -276,7 +291,7 @@ func DyDeviceHeartbeat(ctx context.Context, task *cron.Task) error {
 	reqOptions.Header.SetCookie("sid_guard", sidGuard)
 	var _url = "https://webcast.us.tiktok.com/webcast/room/create_info/?" + params.Query()
 	_url += "&X-Gnarly=" + Encrypt(_url, "", reqOptions.Header.UserAgent())
-	err := WebSync(
+	err = WebSync(
 		_url,
 		reqOptions,
 	)
@@ -305,7 +320,10 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 	case model.TwoFA:
 		json.Unmarshal([]byte(taskArg.VerifyArgs), &twoFa)
 	}
-	var p, _ = xray.Xray.Get(taskArg.ProxyName, taskArg.ProxyValue)
+	p, err := xray.Xray.Get(taskArg.ProxyName, taskArg.ProxyValue)
+	if err != nil {
+		return err
+	}
 	_browser := common.GBrowser.Peek(false, common.DefaultBrowserTryPeekTimeout)
 	if _browser == nil {
 		return model.Retry(nil).WithTag(model.ErrBrowserPeekTimeout)
@@ -332,21 +350,20 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 	if err := _browser.Connect(); err != nil {
 		return model.Retry(err).WithTag(model.ErrBrowserConnect)
 	}
-	var page, err = _browser.Blank()
+	page, err := _browser.Blank()
 	if err != nil {
 		return model.Retry(err).WithTag(model.ErrBrowserLoadPage)
 	}
-	page.Timeout(common.DefaultBrowserPageTimeout)
 	err = page.Load("https://www.tiktok.com")
 	if err != nil {
 		return model.Retry(err).WithTag(model.ErrBrowserLoadUrl)
 	}
-	err = page.WaitLoad()
+	err = page.Timeout(common.DefaultBrowserPageTimeout).WaitLoad()
 	if err != nil {
 		return model.Retry(err).WithTag(model.ErrBrowserWaitLoad)
 	}
 	var processLoginButton = func() error {
-		loginEle, err := page.RodPage().Element("#top-right-action-bar-login-button")
+		loginEle, err := page.RodPage().Timeout(common.DefaultBrowserStepTimeout).Element("#top-right-action-bar-login-button")
 		if err != nil {
 			return err
 		}
@@ -388,7 +405,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return nil
 	}
 	var processInputUser = func(userName string) error {
-		inputUsrEle, err := page.RodPage().Element("input[placeholder='Email or username']")
+		inputUsrEle, err := page.RodPage().Timeout(common.DefaultBrowserStepTimeout).Element("input[placeholder='Email or username']")
 		if err != nil {
 			return err
 		}
@@ -396,7 +413,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return inputUsrEle.Input(userName)
 	}
 	var processInputPassword = func(password string) error {
-		inputPwdEle, err := page.RodPage().Element("input[placeholder='Password']")
+		inputPwdEle, err := page.RodPage().Timeout(common.DefaultBrowserStepTimeout).Element("input[placeholder='Password']")
 		if err != nil {
 			return err
 		}
@@ -513,7 +530,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return code, nil
 	}
 	var processDigitCode = func(code string) error {
-		verifyCodeEle, err := page.RodPage().Element("input[placeholder='Enter 6-digit code']")
+		verifyCodeEle, err := page.RodPage().Timeout(common.DefaultBrowserStepTimeout).Element("input[placeholder='Enter 6-digit code']")
 		if err != nil {
 			return err
 		}
@@ -521,7 +538,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return verifyCodeEle.Input(code)
 	}
 	var processClickEmailNextButton = func() error {
-		nextEle, err := page.RodPage().ElementX("//div[text()='Next']/parent::div/parent::div/parent::button")
+		nextEle, err := page.RodPage().Timeout(common.DefaultBrowserStepTimeout).ElementX("//div[text()='Next']/parent::div/parent::div/parent::button")
 		if err != nil {
 			return err
 		}
@@ -529,7 +546,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return nextEle.Click(proto.InputMouseButtonLeft, 1)
 	}
 	var processClick2FANextButton = func() error {
-		nextEle, err := page.RodPage().ElementX("//button[text()='Next']")
+		nextEle, err := page.RodPage().Timeout(common.DefaultBrowserStepTimeout).ElementX("//button[text()='Next']")
 		if err != nil {
 			return err
 		}
@@ -537,7 +554,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 		return nextEle.Click(proto.InputMouseButtonLeft, 1)
 	}
 	var processClickSendEmail = func() error {
-		emailVerifyEle, err := page.RodPage().ElementX("//div[@id='idv-modal-container']//h1/following-sibling::div[1]")
+		emailVerifyEle, err := page.RodPage().Timeout(common.DefaultBrowserStepTimeout).ElementX("//div[@id='idv-modal-container']//h1/following-sibling::div[1]")
 		if err != nil {
 			return err
 		}
@@ -592,7 +609,10 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 							return model.Retry(err).WithTag(model.ErrBrowserInputEmailCode)
 						}
 						err = processClickEmailNextButton()
-						return model.Retry(err).WithTag(model.ErrBrowserClickEmailNext)
+						if err != nil {
+							return model.Retry(err).WithTag(model.ErrBrowserClickEmailNext)
+						}
+						return nil
 					}).WaitAny(); err != nil {
 					return err
 				}
@@ -682,6 +702,7 @@ func DyDeviceSync(ctx context.Context, task *cron.Task) error {
 				return model.NoRetry(nil).WithTag(model.ErrAccountMaximium)
 			}).
 			WaitAny(); err != nil {
+
 			return err
 		}
 		return nil

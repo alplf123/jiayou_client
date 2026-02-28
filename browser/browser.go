@@ -676,8 +676,9 @@ func (chains *Chains) Wait() error {
 }
 
 type Page struct {
-	browser *Browser
-	page    *rod.Page
+	browser     *Browser
+	page        *rod.Page
+	withTimeout bool
 }
 
 func (bitPage *Page) WaitSelector(expr string, callback ChainCallback) error {
@@ -725,7 +726,14 @@ func (bitPage *Page) Close() error {
 }
 func (bitPage *Page) Timeout(timeout time.Duration) *Page {
 	if timeout > 0 {
-		bitPage.page = bitPage.page.Timeout(timeout)
+		return &Page{page: bitPage.page.Timeout(timeout), browser: bitPage.browser, withTimeout: true}
+	}
+	return bitPage
+}
+func (bitPage *Page) CancelTimeout() *Page {
+	if bitPage.withTimeout {
+		bitPage.page = bitPage.page.CancelTimeout()
+		bitPage.withTimeout = false
 	}
 	return bitPage
 }

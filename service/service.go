@@ -6,6 +6,7 @@ import (
 	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/cron"
 	"jiayou_backend_spider/service/ffmpeg"
+	"jiayou_backend_spider/service/node"
 	"jiayou_backend_spider/service/xray"
 )
 
@@ -26,6 +27,9 @@ func OnLoad(app *engine.Engine) error {
 		return err
 	}
 	if err := xray.OnLoad(app); err != nil {
+		return err
+	}
+	if err := node.OnLoad(app); err != nil {
 		return err
 	}
 	if err := api.OnLoad(app); err != nil {

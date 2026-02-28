@@ -261,7 +261,7 @@ func OnLoad(app *engine.Engine) error {
 				return err
 			}
 		} else {
-			common.GLogger.Error("stat ffmpeg path failed", zap.String("xray", xrayPath), zap.Error(err))
+			common.GLogger.Error("stat xray path failed", zap.String("xray", xrayPath), zap.Error(err))
 			return err
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -764,6 +765,10 @@ func DecodePayload(payload []byte, limit int64, out any) error {
 		if err != nil {
 			return err
 		}
+	case json.Unmarshaler:
+		if err := v.UnmarshalJSON(raw); err != nil {
+			return err
+		}
 	case encoding.BinaryUnmarshaler:
 		if err := v.UnmarshalBinary(raw); err != nil {
 			return err
@@ -789,6 +794,12 @@ func EncodePayload(payload any, limit int64) ([]byte, error) {
 		return t, nil
 	case string:
 		reader = strings.NewReader(t)
+	case json.Marshaler:
+		if raw, err := t.MarshalJSON(); err != nil {
+			return nil, err
+		} else {
+			reader = bytes.NewReader(raw)
+		}
 	case encoding.BinaryMarshaler:
 		if raw, err := t.MarshalBinary(); err != nil {
 			return nil, err

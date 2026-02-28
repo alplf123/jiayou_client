@@ -1,15 +1,12 @@
 package utils
 
 import (
-	"bytes"
-	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
 	"math/rand"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -425,27 +422,4 @@ func ValidJs(js string) bool {
 		Loader: api.LoaderJS,
 	})
 	return len(result.Errors) == 0
-}
-func RunJsCtx(ctx context.Context, js string, call string, args ...string) (string, error) {
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	var _args []string
-	for _, arg := range args {
-		_args = append(_args, "'"+arg+"'")
-	}
-	var cmd = exec.CommandContext(ctx, "node.exe")
-	var stdOut bytes.Buffer
-	cmd.Stdout = &stdOut
-	cmd.Stdin = strings.NewReader(
-		fmt.Sprintf("%s\r\n%s", js,
-			fmt.Sprintf("console.log(%s(%s))", call, strings.Join(_args, ","))))
-	if errors.Is(cmd.Err, exec.ErrDot) {
-		cmd.Err = nil
-	}
-	if err := cmd.Run(); err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(stdOut.String()), nil
 }

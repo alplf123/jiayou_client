@@ -1,14 +1,12 @@
 package cron
 
 import (
-	"context"
 	"fmt"
 	"jiayou_backend_spider/cron"
 	"jiayou_backend_spider/engine"
 	"jiayou_backend_spider/service/common"
 	"jiayou_backend_spider/service/cron/tiktok"
 	"jiayou_backend_spider/service/model"
-	"jiayou_backend_spider/service/xray"
 	"jiayou_backend_spider/utils"
 	"time"
 
@@ -44,15 +42,6 @@ func OnLoad(app *engine.Engine) error {
 	logger, _ := app.Log()
 	if distribute.First() != nil {
 		var server = distribute.First().Server()
-		server.BeforeTask(func(ctx context.Context, task *cron.Task) error {
-			var taskArg model.TaskArg
-			if err := task.Payload().As(&taskArg); err == nil {
-				if _, err := xray.Xray.Get(taskArg.ProxyName, taskArg.ProxyValue); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
 		if err := tiktok.Register(server); err != nil {
 			return fmt.Errorf("douyin register failed,%w", err)
 		}
